@@ -1,8 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
-import { mockUser } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/use-api";
 
 interface AuthContextType {
   user: User | null;
@@ -21,45 +21,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const api = useApi();
 
-  // Simulate checking for existing session
+  // Check for existing session on load
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // In a real app, this would check local storage or cookies for tokens
-        // and validate with the backend
-        const savedUser = localStorage.getItem("user");
+        // Check if token exists in localStorage
+        const token = localStorage.getItem("token");
         
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
+        if (token) {
+          // Fetch current user data
+          const userData = await api.get("/users/me");
+          setUser(userData);
         }
       } catch (error) {
         console.error("Auth check failed:", error);
+        // Clear invalid token
+        localStorage.removeItem("token");
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuth();
-  }, []);
+  }, [api]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // In a real app, this would make an API call to your backend
-      // For now, we'll simulate a successful login with our mock user if email exists
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Make login API request
+      const response = await api.post("/login", { email, password });
       
-      if (email === mockUser.email) {
-        setUser(mockUser);
-        localStorage.setItem("user", JSON.stringify(mockUser));
-        toast({
-          title: "Logged in successfully",
-          description: `Welcome back, ${mockUser.name}!`,
-        });
-      } else {
-        throw new Error("Invalid credentials");
-      }
+      // Save token
+      localStorage.setItem("token", response.access_token);
+      
+      // Fetch user data
+      const userData = await api.get("/users/me");
+      setUser(userData);
+      
+      toast({
+        title: "Logged in successfully",
+        description: `Welcome back, ${userData.name}!`,
+      });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -75,17 +79,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const register = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // In a real app, this would make an API call to your backend
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Register user
+      await api.post("/signup", { name, email, password });
       
-      const newUser = {
-        id: `user-${Date.now()}`,
-        name,
-        email,
-      };
-      
-      setUser(newUser);
-      localStorage.setItem("user", JSON.stringify(newUser));
+      // Log in the newly registered user
+      await login(email, password);
       
       toast({
         title: "Registration successful",
@@ -105,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("user");
+    localStorage.removeItem("token");
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",

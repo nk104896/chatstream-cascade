@@ -1,8 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { ChatThread, Message, FileAttachment, ChatHistoryByDate } from "@/types";
-import { mockChatThreads, generateMockThreadsByDate } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
+import { useApi } from "@/hooks/use-api";
+import { useAuth } from "@/context/AuthContext";
 
 interface ChatContextType {
   threads: ChatThread[];
@@ -25,172 +26,141 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const api = useApi();
+  const { isAuthenticated } = useAuth();
 
-  // Initialize with mock data
+  // Load threads when authenticated
   useEffect(() => {
-    setThreads(mockChatThreads);
-    setThreadsByDate(generateMockThreadsByDate());
-    setCurrentThread(null);
-  }, []);
+    if (isAuthenticated) {
+      fetchThreads();
+    } else {
+      // Clear threads when not authenticated
+      setThreads([]);
+      setThreadsByDate({});
+      setCurrentThread(null);
+    }
+  }, [isAuthenticated]);
 
-  // Helper to update threadsByDate
-  const updateThreadsByDate = useCallback((updatedThreads: ChatThread[]) => {
-    const newThreadsByDate: ChatHistoryByDate = {};
-    
-    updatedThreads.forEach(thread => {
-      const dateStr = thread.createdAt.toLocaleDateString('en-US', {
+  // Fetch threads from API
+  const fetchThreads = useCallback(async () => {
+    try {
+      // Get threads
+      const threadsData = await api.get("/threads");
+      setThreads(threadsData);
+      
+      // Get history by date
+      const historyData = await api.get("/history");
+      setThreadsByDate(historyData);
+    } catch (error) {
+      console.error("Error fetching threads:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to load conversations",
+        description: "Please try again later",
+      });
+    }
+  }, [api, toast]);
+
+  const createNewThread = useCallback(async () => {
+    try {
+      const newThread = await api.post("/threads", {
+        title: "New Conversation"
+      });
+      
+      setThreads(prevThreads => [newThread, ...prevThreads]);
+      
+      // Update threadsByDate
+      const dateStr = new Date(newThread.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       });
       
-      if (!newThreadsByDate[dateStr]) {
-        newThreadsByDate[dateStr] = [];
-      }
+      setThreadsByDate(prev => {
+        const updated = { ...prev };
+        if (!updated[dateStr]) {
+          updated[dateStr] = [];
+        }
+        updated[dateStr] = [newThread, ...updated[dateStr]];
+        return updated;
+      });
       
-      newThreadsByDate[dateStr].push(thread);
-    });
-    
-    setThreadsByDate(newThreadsByDate);
-  }, []);
-
-  const createNewThread = useCallback(() => {
-    const newThread: ChatThread = {
-      id: `thread-${Date.now()}`,
-      title: "New Conversation",
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    setThreads(prevThreads => {
-      const updatedThreads = [newThread, ...prevThreads];
-      updateThreadsByDate(updatedThreads);
-      return updatedThreads;
-    });
-
-    setCurrentThread(newThread);
-  }, [updateThreadsByDate]);
-
-  const selectThread = useCallback((threadId: string) => {
-    const thread = threads.find(t => t.id === threadId);
-    if (thread) {
-      setCurrentThread(thread);
+      setCurrentThread(newThread);
+    } catch (error) {
+      console.error("Error creating thread:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to create new conversation",
+        description: "Please try again later",
+      });
     }
-  }, [threads]);
+  }, [api, toast]);
 
-  const processUserMessage = async (content: string, files: FileAttachment[] = []) => {
+  const selectThread = useCallback(async (threadId: string) => {
+    try {
+      const thread = await api.get(`/threads/${threadId}`);
+      setCurrentThread(thread);
+    } catch (error) {
+      console.error("Error selecting thread:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to load conversation",
+        description: "Please try again later",
+      });
+    }
+  }, [api, toast]);
+
+  const sendMessage = async (content: string, files: File[] = []) => {
+    // Create a thread if none exists
+    if (!currentThread) {
+      await createNewThread();
+    }
+    
     setIsProcessing(true);
     
     try {
-      // In a real app, this would send the message to your backend API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Process files if any
+      let fileAttachments: FileAttachment[] = [];
+      if (files.length > 0) {
+        fileAttachments = await api.uploadFiles(files);
+      }
       
-      // Create a new message from the assistant
-      const assistantResponse: Message = {
-        id: `msg-${Date.now()}-assistant`,
-        content: generateMockResponse(content),
-        sender: "assistant",
-        timestamp: new Date(),
-        files: [],
-      };
-      
-      return assistantResponse;
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Message processing failed",
-        description: "Unable to process your message. Please try again.",
-      });
-      throw error;
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  
-  // Helper to generate a mock response
-  const generateMockResponse = (userMessage: string): string => {
-    if (userMessage.toLowerCase().includes("hello") || userMessage.toLowerCase().includes("hi")) {
-      return "Hello! How can I assist you today?";
-    } else if (userMessage.toLowerCase().includes("help")) {
-      return "I'm here to help! What do you need assistance with?";
-    } else if (userMessage.toLowerCase().includes("thanks") || userMessage.toLowerCase().includes("thank you")) {
-      return "You're welcome! Is there anything else you'd like to know?";
-    } else if (userMessage.toLowerCase().includes("feature")) {
-      return "This chat application supports text messaging, file attachments, and conversation history. Is there a specific feature you're interested in?";
-    } else {
-      return "I understand your message. How can I help you further with that?";
-    }
-  };
-
-  const sendMessage = async (content: string, files: File[] = []) => {
-    if (!currentThread) {
-      createNewThread();
-    }
-    
-    try {
-      // Process files
-      const fileAttachments: FileAttachment[] = await Promise.all(
-        files.map(async (file) => {
-          // In a real app, you would upload these files to your backend/storage
-          const fileId = `file-${Date.now()}-${file.name}`;
-          const fileUrl = URL.createObjectURL(file);
-          
-          // Create preview for images
-          let preview = undefined;
-          if (file.type.startsWith('image/')) {
-            preview = fileUrl;
-          }
-          
-          return {
-            id: fileId,
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            url: fileUrl,
-            preview
-          };
-        })
-      );
-      
-      // Create user message
-      const userMessage: Message = {
-        id: `msg-${Date.now()}-user`,
+      // Send user message
+      const userMessage = await api.post(`/threads/${currentThread!.id}/messages`, {
         content,
         sender: "user",
-        timestamp: new Date(),
-        files: fileAttachments,
-      };
-      
-      // Add user message to current thread
-      const updatedThread = {
-        ...currentThread!,
-        messages: [...currentThread!.messages, userMessage],
-        updatedAt: new Date(),
-      };
-      
-      // Generate assistant response
-      const assistantMessage = await processUserMessage(content, fileAttachments);
-      
-      // Add assistant message to thread
-      const finalThread = {
-        ...updatedThread,
-        messages: [...updatedThread.messages, assistantMessage],
-        title: updatedThread.messages.length === 0 ? getThreadTitle(content) : updatedThread.title,
-        updatedAt: new Date(),
-      };
-      
-      // Update threads
-      setThreads(prevThreads => {
-        const updatedThreads = prevThreads.map(t => 
-          t.id === finalThread.id ? finalThread : t
-        );
-        updateThreadsByDate(updatedThreads);
-        return updatedThreads;
+        files: fileAttachments
       });
       
-      // Update current thread
-      setCurrentThread(finalThread);
+      // Update current thread with user message
+      setCurrentThread(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          messages: [...prev.messages, userMessage],
+          updatedAt: new Date()
+        };
+      });
+      
+      // Process message with AI
+      const aiResponse = await api.post("/process-message", {
+        content,
+        thread_id: currentThread!.id
+      });
+      
+      // Update thread with AI response
+      const updatedThread = await api.get(`/threads/${currentThread!.id}`);
+      setCurrentThread(updatedThread);
+      
+      // Update title if this is the first message
+      if (updatedThread.messages.length <= 2) {
+        const titleUpdated = await api.put(`/threads/${currentThread!.id}`, {
+          title: getThreadTitle(content)
+        });
+      }
+      
+      // Refresh threads list
+      fetchThreads();
     } catch (error) {
       console.error("Error sending message:", error);
       toast({
@@ -198,6 +168,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         title: "Failed to send message",
         description: "Please try again later",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -211,21 +183,42 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     return message.substring(0, maxLength - 3) + "...";
   };
 
-  const deleteThread = (threadId: string) => {
-    setThreads(prevThreads => {
-      const updatedThreads = prevThreads.filter(t => t.id !== threadId);
-      updateThreadsByDate(updatedThreads);
-      return updatedThreads;
-    });
-    
-    if (currentThread?.id === threadId) {
-      setCurrentThread(null);
+  const deleteThread = async (threadId: string) => {
+    try {
+      await api.delete(`/threads/${threadId}`);
+      
+      // Update threads state
+      setThreads(prevThreads => prevThreads.filter(t => t.id !== threadId));
+      
+      // Update threadsByDate
+      setThreadsByDate(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].filter(t => t.id !== threadId);
+          if (updated[date].length === 0) {
+            delete updated[date];
+          }
+        });
+        return updated;
+      });
+      
+      // Clear current thread if it was deleted
+      if (currentThread?.id === threadId) {
+        setCurrentThread(null);
+      }
+      
+      toast({
+        title: "Conversation deleted",
+        description: "The conversation has been successfully deleted",
+      });
+    } catch (error) {
+      console.error("Error deleting thread:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to delete conversation",
+        description: "Please try again later",
+      });
     }
-    
-    toast({
-      title: "Conversation deleted",
-      description: "The conversation has been successfully deleted",
-    });
   };
 
   return (
