@@ -1,9 +1,9 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState, useCallback } from "react";
 
 // Base API URL - update with your backend URL
-const API_BASE_URL = "http://localhost:8000/api";
+// This will work for both development and production environments
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 export function useApi() {
   const { toast } = useToast();
@@ -35,6 +35,7 @@ export function useApi() {
     options: RequestInit = {}
   ) => {
     setIsLoading(true);
+    console.log(`Fetching from: ${API_BASE_URL}${endpoint}`);
     
     try {
       const headers = {
