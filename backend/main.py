@@ -50,8 +50,15 @@ uploads_dir = os.path.join(os.getcwd(), os.getenv("UPLOAD_DIRECTORY", "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
-@app.get("/", tags=["Root"])
+# Mount static files directory for the React build
+static_dir = os.path.join(os.getcwd(), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
+# Root endpoint will be handled by the static files
+@app.get("/", include_in_schema=False)
 async def root():
+    # This will be overridden by the static file mount
     return {"message": "Welcome to the Chat API"}
 
 if __name__ == "__main__":
