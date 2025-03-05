@@ -10,6 +10,10 @@ interface ChatContextType {
   threadsByDate: ChatHistoryByDate;
   currentThread: ChatThread | null;
   isProcessing: boolean;
+  provider: string;
+  model: string;
+  setProvider: (provider: string) => void;
+  setModel: (model: string) => void;
   createNewThread: () => void;
   setCurrentThread: (threadId: string) => void;
   sendMessage: (content: string, files?: File[]) => Promise<void>;
@@ -25,6 +29,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [threadsByDate, setThreadsByDate] = useState<ChatHistoryByDate>({});
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [provider, setProvider] = useState<string>("openai");
+  const [model, setModel] = useState<string>("gpt-4o");
   const { toast } = useToast();
   const api = useApi();
   const { isAuthenticated } = useAuth();
@@ -142,10 +148,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       });
       
-      // Process message with AI
+      // Process message with AI - now including provider and model
       const aiResponse = await api.post("/process-message", {
         content,
-        thread_id: currentThread!.id
+        thread_id: currentThread!.id,
+        provider,
+        model
       });
       
       // Update thread with AI response
@@ -228,6 +236,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         threadsByDate,
         currentThread,
         isProcessing,
+        provider,
+        model,
+        setProvider,
+        setModel,
         createNewThread,
         setCurrentThread: selectThread,
         sendMessage,

@@ -1,8 +1,8 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 import json
 from database import get_db
@@ -92,86 +92,29 @@ async def create_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Get thread by ID
-    thread = db.query(ChatThread).filter(
-        ChatThread.id == thread_id,
-        ChatThread.users.any(id=current_user.id)
-    ).first()
-    
-    if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
-        )
-    
-    # Create new message
-    new_message = Message(
-        content=message.content,
-        sender=message.sender,
-        thread_id=thread.id,
-        user_id=current_user.id if message.sender == "user" else None
-    )
-    
-    # Add to database
-    db.add(new_message)
-    db.commit()
-    db.refresh(new_message)
-    
-    # Create files if any
-    if message.files:
-        from models import FileAttachment
-        for file_data in message.files:
-            new_file = FileAttachment(
-                name=file_data.name,
-                type=file_data.type,
-                size=file_data.size,
-                url=file_data.url,
-                preview=file_data.preview,
-                message_id=new_message.id
-            )
-            db.add(new_file)
-        
-        db.commit()
-        db.refresh(new_message)
-    
-    # Update thread's updated_at timestamp
-    thread.updated_at = datetime.utcnow()
-    db.commit()
-    
-    return new_message
+    # ... keep existing code (message creation logic)
 
 @router.get("/history", response_model=Dict[str, List[ChatThreadResponse]])
 async def get_history_by_date(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Get all threads for current user
-    threads = db.query(ChatThread).filter(
-        ChatThread.users.any(id=current_user.id)
-    ).order_by(desc(ChatThread.updated_at)).all()
-    
-    # Group threads by date
-    history_by_date = {}
-    for thread in threads:
-        date_str = thread.created_at.strftime("%B %d, %Y")
-        if date_str not in history_by_date:
-            history_by_date[date_str] = []
-        history_by_date[date_str].append(thread)
-    
-    return history_by_date
+    # ... keep existing code (history retrieval logic)
 
 @router.post("/process-message", response_model=MessageResponse)
 async def process_message(
-    message_content: dict,
+    message_content: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Process a user message and generate an AI response.
-    In a real application, this would involve calling an AI service.
+    Now supports different AI providers and models.
     """
     content = message_content.get("content", "")
     thread_id = message_content.get("thread_id")
+    provider = message_content.get("provider", "openai")
+    model = message_content.get("model", "gpt-4o")
     
     # Validate thread
     thread = db.query(ChatThread).filter(
@@ -185,18 +128,18 @@ async def process_message(
             detail="Thread not found"
         )
     
-    # In a real app, call your AI service here
-    # For now, simulate a simple response
+    # In a real app, call your AI service here based on provider and model
+    # For now, simulate a simple response with provider and model info
     if "hello" in content.lower() or "hi" in content.lower():
-        response_text = "Hello! How can I assist you today?"
+        response_text = f"Hello! I'm using {provider}'s {model}. How can I assist you today?"
     elif "help" in content.lower():
-        response_text = "I'm here to help! What do you need assistance with?"
+        response_text = f"I'm here to help! I'm powered by {provider}'s {model}. What do you need assistance with?"
     elif "thanks" in content.lower() or "thank you" in content.lower():
-        response_text = "You're welcome! Is there anything else you'd like to know?"
+        response_text = f"You're welcome! Using {provider}'s {model} to assist you. Is there anything else you'd like to know?"
     elif "feature" in content.lower():
-        response_text = "This chat application supports text messaging, file attachments, and conversation history. Is there a specific feature you're interested in?"
+        response_text = f"This chat application supports text messaging, file attachments, conversation history, and multiple AI models including {provider}'s {model}. Is there a specific feature you're interested in?"
     else:
-        response_text = "I understand your message. How can I help you further with that?"
+        response_text = f"I understand your message. I'm using {provider}'s {model} to help you. How can I help you further with that?"
     
     # Create AI response message
     ai_message = Message(

@@ -3,12 +3,21 @@ import React, { useRef, useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/chat/ChatMessage";
 import MessageInput from "@/components/chat/MessageInput";
+import ModelSelector from "@/components/chat/ModelSelector";
 import { useChat } from "@/context/ChatContext";
 import { ArrowDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const ChatWindow: React.FC = () => {
-  const { currentThread, sendMessage, isProcessing } = useChat();
+  const { 
+    currentThread, 
+    sendMessage, 
+    isProcessing, 
+    provider, 
+    model, 
+    setProvider, 
+    setModel 
+  } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -55,6 +64,14 @@ const ChatWindow: React.FC = () => {
           <p className="text-muted-foreground">
             Start a new conversation or select an existing one from the history panel.
           </p>
+          <div className="mt-6">
+            <ModelSelector 
+              onProviderChange={setProvider}
+              onModelChange={setModel}
+              defaultProvider={provider}
+              defaultModel={model}
+            />
+          </div>
         </div>
       </div>
     );
@@ -62,6 +79,14 @@ const ChatWindow: React.FC = () => {
 
   return (
     <div className="relative flex h-full flex-col">
+      <div className="p-4 border-b">
+        <ModelSelector 
+          onProviderChange={setProvider}
+          onModelChange={setModel}
+          defaultProvider={provider}
+          defaultModel={model}
+        />
+      </div>
       <ScrollArea 
         ref={scrollAreaRef}
         className="flex-1 p-4"
