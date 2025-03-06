@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -98,14 +97,72 @@ async def create_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # ... keep existing code (message creation logic)
+    # Get thread by ID
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    # Create new message
+    new_message = Message(
+        content=message.content,
+        sender=message.sender,
+        thread_id=thread.id
+    )
+    
+    # Add to database
+    db.add(new_message)
+    
+    # Update thread's updated_at timestamp
+    thread.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(new_message)
+    
+    return new_message
 
 @router.get("/history", response_model=Dict[str, List[ChatThreadResponse]])
 async def get_history_by_date(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # ... keep existing code (history retrieval logic)
+    # Get all threads for current user
+    threads = db.query(ChatThread).filter(
+        ChatThread.users.any(id=current_user.id)
+    ).order_by(desc(ChatThread.updated_at)).all()
+    
+    # Group threads by date
+    history_by_date = {}
+    
+    for thread in threads:
+        # Format date as YYYY-MM-DD
+        date_str = thread.updated_at.strftime("%Y-%m-%d")
+        
+        # Format date for display (e.g., "Today", "Yesterday", or "Month Day")
+        today = datetime.utcnow().date()
+        thread_date = thread.updated_at.date()
+        
+        if thread_date == today:
+            display_date = "Today"
+        elif thread_date == (today - datetime.timedelta(days=1)):
+            display_date = "Yesterday"
+        else:
+            # Format as "Month Day" (e.g., "June 15")
+            display_date = thread.updated_at.strftime("%B %d")
+        
+        # Add thread to appropriate date group
+        if display_date not in history_by_date:
+            history_by_date[display_date] = []
+        
+        history_by_date[display_date].append(thread)
+    
+    return history_by_date
 
 # AI Provider API Handlers
 def process_openai_request(content, model):
