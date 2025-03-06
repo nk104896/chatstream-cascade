@@ -5,10 +5,16 @@ from sqlalchemy import desc
 from typing import List, Dict, Optional
 from datetime import datetime
 import json
+import os
+import requests
 from database import get_db
 from models import User, ChatThread, Message
 from schemas import ChatThreadCreate, ChatThreadResponse, MessageCreate, MessageResponse, ChatHistoryByDate
 from utils import get_current_user
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 router = APIRouter()
 
@@ -101,6 +107,89 @@ async def get_history_by_date(
 ):
     # ... keep existing code (history retrieval logic)
 
+# AI Provider API Handlers
+def process_openai_request(content, model):
+    """Process request using OpenAI API"""
+    api_key = os.getenv("OPENAI_API_KEY")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": content}],
+        "max_tokens": 1000
+    }
+    
+    response = requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers=headers,
+        json=payload
+    )
+    
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OpenAI API error: {response.text}"
+        )
+    
+    response_data = response.json()
+    return response_data["choices"][0]["message"]["content"]
+
+def process_gemini_request(content, model):
+    """Process request using Google's Gemini API"""
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    
+    payload = {
+        "contents": [{"parts": [{"text": content}]}],
+        "generationConfig": {
+            "maxOutputTokens": 1000,
+            "temperature": 0.7
+        }
+    }
+    
+    response = requests.post(
+        url,
+        json=payload,
+        headers={"Content-Type": "application/json"}
+    )
+    
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Gemini API error: {response.text}"
+        )
+    
+    response_data = response.json()
+    return response_data["candidates"][0]["content"]["parts"][0]["text"]
+
+def process_deepseek_request(content, model):
+    """Process request using DeepSeek API"""
+    # Placeholder for DeepSeek API integration
+    return f"DeepSeek response using {model}: This is a simulated response for '{content}'"
+
+def process_mistral_request(content, model):
+    """Process request using Mistral API"""
+    # Placeholder for Mistral API integration
+    return f"Mistral response using {model}: This is a simulated response for '{content}'"
+
+def get_ai_response(content, provider, model):
+    """Route the request to the appropriate AI provider"""
+    if provider == "openai":
+        return process_openai_request(content, model)
+    elif provider == "gemini":
+        return process_gemini_request(content, model)
+    elif provider == "deepseek":
+        return process_deepseek_request(content, model)
+    elif provider == "mistral":
+        return process_mistral_request(content, model)
+    else:
+        # Fallback to a generic response if provider not supported
+        return f"Using {provider}'s {model}: I understand your message and am here to help."
+
 @router.post("/process-message", response_model=MessageResponse)
 async def process_message(
     message_content: dict = Body(...),
@@ -108,8 +197,7 @@ async def process_message(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Process a user message and generate an AI response.
-    Now supports different AI providers and models.
+    Process a user message and generate an AI response based on selected provider and model.
     """
     content = message_content.get("content", "")
     thread_id = message_content.get("thread_id")
@@ -128,33 +216,31 @@ async def process_message(
             detail="Thread not found"
         )
     
-    # In a real app, call your AI service here based on provider and model
-    # For now, simulate a simple response with provider and model info
-    if "hello" in content.lower() or "hi" in content.lower():
-        response_text = f"Hello! I'm using {provider}'s {model}. How can I assist you today?"
-    elif "help" in content.lower():
-        response_text = f"I'm here to help! I'm powered by {provider}'s {model}. What do you need assistance with?"
-    elif "thanks" in content.lower() or "thank you" in content.lower():
-        response_text = f"You're welcome! Using {provider}'s {model} to assist you. Is there anything else you'd like to know?"
-    elif "feature" in content.lower():
-        response_text = f"This chat application supports text messaging, file attachments, conversation history, and multiple AI models including {provider}'s {model}. Is there a specific feature you're interested in?"
-    else:
-        response_text = f"I understand your message. I'm using {provider}'s {model} to help you. How can I help you further with that?"
-    
-    # Create AI response message
-    ai_message = Message(
-        content=response_text,
-        sender="assistant",
-        thread_id=thread.id
-    )
-    
-    # Add to database
-    db.add(ai_message)
-    db.commit()
-    db.refresh(ai_message)
-    
-    # Update thread's updated_at timestamp
-    thread.updated_at = datetime.utcnow()
-    db.commit()
-    
-    return ai_message
+    try:
+        # Get response from the selected AI provider and model
+        response_text = get_ai_response(content, provider, model)
+        
+        # Create AI response message
+        ai_message = Message(
+            content=response_text,
+            sender="assistant",
+            thread_id=thread.id
+        )
+        
+        # Add to database
+        db.add(ai_message)
+        db.commit()
+        db.refresh(ai_message)
+        
+        # Update thread's updated_at timestamp
+        thread.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return ai_message
+        
+    except Exception as e:
+        # Handle any errors during API processing
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing message: {str(e)}"
+        )

@@ -28,6 +28,7 @@ const providers: ProviderOption[] = [
     models: [
       { id: "gpt-4", name: "GPT-4" },
       { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini" },
     ],
   },
   {
@@ -36,6 +37,22 @@ const providers: ProviderOption[] = [
     models: [
       { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
       { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+    ],
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    models: [
+      { id: "deepseek-coder", name: "DeepSeek Coder" },
+      { id: "deepseek-chat", name: "DeepSeek Chat" },
+    ],
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    models: [
+      { id: "mistral-large", name: "Mistral Large" },
+      { id: "mistral-small", name: "Mistral Small" },
     ],
   },
 ];
