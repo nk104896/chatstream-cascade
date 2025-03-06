@@ -13,7 +13,7 @@ export function useApi() {
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("token");
     // Create base headers object
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
     
@@ -26,7 +26,7 @@ export function useApi() {
   }, []);
 
   // Shows error messages to the user
-  const showErrorToast = useCallback((error) => {
+  const showErrorToast = useCallback((error: any) => {
     console.error("API Error:", error);
     
     // Get the error message from the response or use a default
@@ -45,7 +45,7 @@ export function useApi() {
   }, [toast]);
 
   // Main function to make API requests
-  const makeApiRequest = useCallback(async (endpoint, options = {}) => {
+  const makeApiRequest = useCallback(async (endpoint: string, options: RequestInit = {}) => {
     // Show loading state
     setIsLoading(true);
     console.log(`Making request to: ${API_BASE_URL}${endpoint}`);
@@ -54,7 +54,7 @@ export function useApi() {
       // Combine default headers with any custom headers
       const headers = {
         ...getAuthHeaders(),
-        ...options.headers,
+        ...(options.headers as Record<string, string> || {}),
       };
 
       console.log('Request headers:', headers); // Debug log
@@ -83,12 +83,12 @@ export function useApi() {
   }, [getAuthHeaders, showErrorToast]);
 
   // Simple GET request
-  const get = useCallback((endpoint) => {
+  const get = useCallback((endpoint: string) => {
     return makeApiRequest(endpoint, { method: "GET" });
   }, [makeApiRequest]);
 
   // POST request with JSON data
-  const post = useCallback((endpoint, data) => {
+  const post = useCallback((endpoint: string, data: any) => {
     return makeApiRequest(endpoint, {
       method: "POST",
       body: JSON.stringify(data),
@@ -96,7 +96,7 @@ export function useApi() {
   }, [makeApiRequest]);
 
   // PUT request with JSON data
-  const put = useCallback((endpoint, data) => {
+  const put = useCallback((endpoint: string, data: any) => {
     return makeApiRequest(endpoint, {
       method: "PUT",
       body: JSON.stringify(data),
@@ -104,12 +104,12 @@ export function useApi() {
   }, [makeApiRequest]);
 
   // DELETE request
-  const deleteRequest = useCallback((endpoint) => {
+  const deleteRequest = useCallback((endpoint: string) => {
     return makeApiRequest(endpoint, { method: "DELETE" });
   }, [makeApiRequest]);
 
   // Special function for uploading files
-  const uploadFiles = useCallback(async (files) => {
+  const uploadFiles = useCallback(async (files: File[]) => {
     setIsLoading(true);
     
     try {

@@ -76,11 +76,28 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
     onDelete();
   };
 
-  const time = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  }).format(new Date(thread.updatedAt));
+  // Fix for invalid date - ensure we have a valid date before trying to format it
+  const getFormattedTime = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      
+      // Check if date is valid before formatting
+      if (isNaN(date.getTime())) {
+        return ""; // Return empty string for invalid dates
+      }
+      
+      return new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        minute: "numeric",
+        hour12: true,
+      }).format(date);
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return ""; // Return empty string if there's an error
+    }
+  };
+
+  const time = getFormattedTime(thread.updatedAt);
 
   return (
     <div
