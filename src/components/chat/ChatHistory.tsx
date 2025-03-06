@@ -77,9 +77,10 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
   };
 
   // Fix for invalid date - ensure we have a valid date before trying to format it
-  const getFormattedTime = (dateStr: string) => {
+  const getFormattedTime = (dateStr: string | Date) => {
     try {
-      const date = new Date(dateStr);
+      // Convert to Date object if string is provided
+      const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
       
       // Check if date is valid before formatting
       if (isNaN(date.getTime())) {
