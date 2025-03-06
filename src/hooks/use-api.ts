@@ -1,8 +1,7 @@
+
 import { useToast } from "@/hooks/use-toast";
 import { useState, useCallback } from "react";
 
-// Base API URL - update with your backend URL
-// This will work for both development and production environments
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 export function useApi() {
@@ -11,10 +10,16 @@ export function useApi() {
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("token");
-    return {
-      "Authorization": token ? `Bearer ${token}` : "",
+    // Only include Authorization header if token exists
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    return headers;
   }, []);
 
   const handleApiError = useCallback((error: any) => {
@@ -42,6 +47,8 @@ export function useApi() {
         ...getAuthHeaders(),
         ...options.headers,
       };
+
+      console.log('Request headers:', headers); // Debug log
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
@@ -93,12 +100,12 @@ export function useApi() {
         formData.append("files", file);
       });
       
-      const token = localStorage.getItem("token");
+      const headers = getAuthHeaders();
+      delete headers["Content-Type"]; // Let browser set correct content-type for FormData
+      
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: "POST",
-        headers: {
-          "Authorization": token ? `Bearer ${token}` : "",
-        },
+        headers,
         body: formData,
       });
       
@@ -114,7 +121,7 @@ export function useApi() {
     } finally {
       setIsLoading(false);
     }
-  }, [handleApiError]);
+  }, [getAuthHeaders, handleApiError]);
 
   return {
     get,
