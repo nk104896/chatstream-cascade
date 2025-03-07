@@ -1,3 +1,4 @@
+
 import { FileAttachment } from "@/types";
 
 // Helper to generate a thread title from the first message
@@ -21,13 +22,16 @@ export const prepareMessagesForAI = (content: string, files: FileAttachment[] = 
 
 // Get mime type for file handling
 export const getFileType = (file: File | FileAttachment): string => {
-  if ('type' in file) {
+  // Check if it's a browser File object
+  if ('type' in file && typeof file.type === 'string') {
     return file.type;
   }
   
-  // For FileAttachment objects, infer type from extension if needed
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  switch (extension) {
+  // For FileAttachment objects or if type is empty, infer type from extension
+  const fileName = 'name' in file ? file.name : '';
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  
+  switch(extension) {
     case 'pdf':
       return 'application/pdf';
     case 'docx':
