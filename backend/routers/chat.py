@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+
+from fastapi import APIRouter, Depends, HTTPException, status, Body, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Dict, Optional
@@ -7,10 +8,11 @@ import json
 import os
 import requests
 from database import get_db
-from models import User, ChatThread, Message
+from models import User, ChatThread, Message, FileAttachment
 from schemas import ChatThreadCreate, ChatThreadResponse, MessageCreate, MessageResponse, ChatHistoryByDate
 from utils import get_current_user
 from dotenv import load_dotenv
+from file_processors import prepare_files_for_ai, format_files_for_provider
 
 # Load environment variables
 load_dotenv()
@@ -146,17 +148,34 @@ async def create_message(
     new_message = Message(
         content=message.content,
         sender=message.sender,
-        thread_id=thread.id
+        thread_id=thread.id,
+        user_id=current_user.id if message.sender == "user" else None
     )
     
     # Add to database
     db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+    
+    # Process files if any
+    if message.files:
+        for file_data in message.files:
+            file_attachment = FileAttachment(
+                id=file_data.id,
+                name=file_data.name,
+                type=file_data.type,
+                size=file_data.size,
+                url=file_data.url,
+                preview=file_data.preview,
+                message_id=new_message.id
+            )
+            db.add(file_attachment)
+        
+        db.commit()
     
     # Update thread's updated_at timestamp
     thread.updated_at = datetime.utcnow()
-    
     db.commit()
-    db.refresh(new_message)
     
     return new_message
 
@@ -198,18 +217,31 @@ async def get_history_by_date(
     return history_by_date
 
 # AI Provider API Handlers
-def process_openai_request(content, model):
-    """Process request using OpenAI API"""
+def process_openai_request(messages, model, files=None):
+    """Process request using OpenAI API with message history and files"""
     api_key = os.getenv("OPENAI_API_KEY")
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
+    # Format messages for OpenAI
+    formatted_messages = messages
+    
+    # If there are files, add their content to the first user message
+    if files and len(files) > 0:
+        file_content = format_files_for_provider(files, "openai")
+        
+        # Find the last user message and add file content
+        for i in range(len(formatted_messages) - 1, -1, -1):
+            if formatted_messages[i]["role"] == "user":
+                formatted_messages[i]["content"] = f"{file_content}\n\n{formatted_messages[i]['content']}"
+                break
+    
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": content}],
-        "max_tokens": 1000
+        "messages": formatted_messages,
+        "max_tokens": 1500
     }
     
     response = requests.post(
@@ -227,16 +259,44 @@ def process_openai_request(content, model):
     response_data = response.json()
     return response_data["choices"][0]["message"]["content"]
 
-def process_gemini_request(content, model):
-    """Process request using Google's Gemini API"""
+def process_gemini_request(messages, model, files=None):
+    """Process request using Google's Gemini API with message history and files"""
     api_key = os.getenv("GEMINI_API_KEY")
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     
+    # Format messages for Gemini
+    formatted_contents = []
+    
+    # Gemini uses a different format, so we need to convert our messages
+    for msg in messages:
+        if msg["role"] == "user":
+            role = "user"
+        elif msg["role"] == "assistant" or msg["role"] == "model":
+            role = "model"
+        else:
+            role = "user"  # Default to user for system messages
+        
+        formatted_contents.append({
+            "role": role,
+            "parts": [{"text": msg["content"]}]
+        })
+    
+    # If there are files, add their content to the latest user message
+    if files and len(files) > 0:
+        file_content = format_files_for_provider(files, "gemini")
+        
+        # Find the last user message and add file content
+        for i in range(len(formatted_contents) - 1, -1, -1):
+            if formatted_contents[i]["role"] == "user":
+                current_text = formatted_contents[i]["parts"][0]["text"]
+                formatted_contents[i]["parts"][0]["text"] = f"{file_content}\n\n{current_text}"
+                break
+    
     payload = {
-        "contents": [{"parts": [{"text": content}]}],
+        "contents": formatted_contents,
         "generationConfig": {
-            "maxOutputTokens": 1000,
+            "maxOutputTokens": 1500,
             "temperature": 0.7
         }
     }
@@ -256,26 +316,19 @@ def process_gemini_request(content, model):
     response_data = response.json()
     return response_data["candidates"][0]["content"]["parts"][0]["text"]
 
-def process_deepseek_request(content, model):
-    """Process request using DeepSeek API"""
-    # Placeholder for DeepSeek API integration
-    return f"DeepSeek response using {model}: This is a simulated response for '{content}'"
-
-def process_mistral_request(content, model):
-    """Process request using Mistral API"""
+def process_mistral_request(messages, model, files=None):
+    """Process request using Mistral API with message history and files"""
     # Placeholder for Mistral API integration
-    return f"Mistral response using {model}: This is a simulated response for '{content}'"
+    return f"Mistral response using {model}: This is a simulated response"
 
-def get_ai_response(content, provider, model):
-    """Route the request to the appropriate AI provider"""
+def get_ai_response(messages, provider, model, files=None):
+    """Route the request to the appropriate AI provider with message history and files"""
     if provider == "openai":
-        return process_openai_request(content, model)
+        return process_openai_request(messages, model, files)
     elif provider == "gemini":
-        return process_gemini_request(content, model)
-    elif provider == "deepseek":
-        return process_deepseek_request(content, model)
+        return process_gemini_request(messages, model, files)
     elif provider == "mistral":
-        return process_mistral_request(content, model)
+        return process_mistral_request(messages, model, files)
     else:
         # Fallback to a generic response if provider not supported
         return f"Using {provider}'s {model}: I understand your message and am here to help."
@@ -287,7 +340,7 @@ async def process_message(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Process a user message and generate an AI response based on selected provider and model.
+    Process a user message with context history and generate an AI response
     """
     content = message_content.get("content", "")
     thread_id = message_content.get("thread_id")
@@ -307,8 +360,49 @@ async def process_message(
         )
     
     try:
+        # Get message history and format for AI
+        messages = []
+        
+        # Include system instruction for better response quality
+        system_message = {
+            "role": "system",
+            "content": "You are a helpful assistant that provides accurate, informative, and friendly responses."
+        }
+        messages.append(system_message)
+        
+        # Get the thread's message history (limited to last 10 messages for context)
+        thread_messages = db.query(Message).filter(
+            Message.thread_id == thread_id
+        ).order_by(Message.timestamp.desc()).limit(10).all()
+        
+        # Reverse to get chronological order
+        thread_messages.reverse()
+        
+        # Convert to AI format
+        for msg in thread_messages:
+            messages.append({
+                "role": "user" if msg.sender == "user" else "assistant",
+                "content": msg.content
+            })
+        
+        # Add the current message
+        messages.append({
+            "role": "user",
+            "content": content
+        })
+        
+        # Process file attachments if any
+        files_content = None
+        last_message = db.query(Message).filter(
+            Message.thread_id == thread_id,
+            Message.sender == "user"
+        ).order_by(Message.timestamp.desc()).first()
+        
+        if last_message and last_message.files:
+            files_content = prepare_files_for_ai(last_message.files)
+        
         # Get response from the selected AI provider and model
-        response_text = get_ai_response(content, provider, model)
+        response_text = get_ai_response(messages, provider, model, files_content)
         
         # Create AI response message
         ai_message = Message(

@@ -41,7 +41,7 @@ class ChatThread(Base):
     
     # Relationships
     users = relationship("User", secondary=user_thread, back_populates="threads")
-    messages = relationship("Message", back_populates="thread", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="thread", cascade="all, delete-orphan", order_by="Message.timestamp")
 
 class Message(Base):
     __tablename__ = "messages"

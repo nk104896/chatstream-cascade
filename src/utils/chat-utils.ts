@@ -116,3 +116,29 @@ export const limitContextLength = (
     return 0;
   });
 };
+
+// Format thread messages for AI consumption with provider-specific formatting
+export const prepareThreadHistoryForAI = (
+  thread: {messages: Array<{sender: string, content: string, timestamp: Date}>},
+  userMessage: string,
+  provider: string,
+  maxTokens: number = 8000
+) => {
+  // Convert thread messages to the format expected by AI providers
+  const messages = thread.messages.map(msg => ({
+    role: msg.sender === 'user' ? 'user' : 'assistant',
+    content: msg.content
+  }));
+  
+  // Add the current user message
+  messages.push({
+    role: 'user',
+    content: userMessage
+  });
+  
+  // Limit context length
+  const limitedMessages = limitContextLength(messages, maxTokens);
+  
+  // Format for the specific provider
+  return formatMessagesForProvider(limitedMessages, provider);
+};
