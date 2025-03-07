@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // Check if token exists in localStorage
         const token = localStorage.getItem("token");
         
-        if (token) {
+        if (token && !user) {
           // Fetch current user data
           const userData = await api.get("/users/me");
           setUser(userData);
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     checkAuth();
-  }, [api]);
+  }, [api, user]);
 
   const login = async (email: string, password: string) => {
     // Prevent multiple simultaneous login attempts

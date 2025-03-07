@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import requests
@@ -94,6 +94,35 @@ async def delete_thread(
     
     return None
 
+@router.put("/threads/{thread_id}", response_model=ChatThreadResponse)
+async def update_thread(
+    thread_id: str,
+    thread_data: ChatThreadCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Get thread by ID
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    # Update thread data
+    thread.title = thread_data.title
+    thread.updated_at = datetime.utcnow()
+    
+    # Commit changes
+    db.commit()
+    db.refresh(thread)
+    
+    return thread
+
 @router.post("/threads/{thread_id}/messages", response_model=MessageResponse)
 async def create_message(
     thread_id: str,
@@ -154,7 +183,7 @@ async def get_history_by_date(
         
         if thread_date == today:
             display_date = "Today"
-        elif thread_date == (today - datetime.timedelta(days=1)):
+        elif thread_date == (today - timedelta(days=1)):
             display_date = "Yesterday"
         else:
             # Format as "Month Day" (e.g., "June 15")
