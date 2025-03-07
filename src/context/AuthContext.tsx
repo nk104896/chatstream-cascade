@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { User } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useApi } from "@/hooks/use-api";
@@ -22,6 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const api = useApi();
+  const loginInProgress = useRef(false);
 
   // Check for existing session on load
   useEffect(() => {
@@ -48,7 +48,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [api]);
 
   const login = async (email: string, password: string) => {
+    // Prevent multiple simultaneous login attempts
+    if (loginInProgress.current) {
+      console.log("Login already in progress, ignoring duplicate call");
+      return;
+    }
+    
+    loginInProgress.current = true;
     setIsLoading(true);
+    
     try {
       // Make login API request
       const response = await api.post("/login", { email, password });
@@ -73,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       throw error;
     } finally {
       setIsLoading(false);
+      loginInProgress.current = false;
     }
   };
 

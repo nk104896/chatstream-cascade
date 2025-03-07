@@ -24,7 +24,11 @@ async def create_thread(
     current_user: User = Depends(get_current_user)
 ):
     # Create new thread
-    new_thread = ChatThread(title=thread.title)
+    new_thread = ChatThread(
+        title=thread.title,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
     new_thread.users.append(current_user)
     
     # Add to database

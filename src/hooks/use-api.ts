@@ -3,7 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useCallback } from "react";
 
 // The base URL for our API calls
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = "/api";
 
 export function useApi() {
   const { toast } = useToast();
