@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatMessage from "@/components/chat/ChatMessage";
 import MessageInput from "@/components/chat/MessageInput";
 import ModelSelector from "@/components/chat/ModelSelector";
+import WelcomeMessage from "@/components/chat/WelcomeMessage";
 import { useChat } from "@/context/ChatContext";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -17,7 +18,8 @@ const ChatWindow: React.FC = () => {
     provider, 
     model, 
     setProvider, 
-    setModel 
+    setModel,
+    createNewThread
   } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -68,21 +70,19 @@ const ChatWindow: React.FC = () => {
 
   if (!currentThread) {
     return (
-      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-        <div className="max-w-md space-y-4">
-          <h2 className="text-3xl font-bold tracking-tight">Welcome to Chat</h2>
-          <p className="text-muted-foreground">
-            Start a new conversation or select an existing one from the history panel.
-          </p>
-          <div className="mt-6">
-            <ModelSelector 
-              onProviderChange={setProvider}
-              onModelChange={setModel}
-              defaultProvider={provider}
-              defaultModel={model}
-            />
-          </div>
+      <div className="flex h-full flex-col">
+        <div className="p-4 border-b">
+          <ModelSelector 
+            onProviderChange={setProvider}
+            onModelChange={setModel}
+            defaultProvider={provider}
+            defaultModel={model}
+          />
         </div>
+        <WelcomeMessage 
+          onNewChat={createNewThread}
+          platformName="Seamless Chat"
+        />
       </div>
     );
   }
