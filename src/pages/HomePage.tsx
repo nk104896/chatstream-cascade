@@ -15,8 +15,50 @@ const HomePage: React.FC = () => {
     document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleNavigation = (path: string) => {
+    navigate(path);
+  };
+
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Navigation */}
+      <nav className="py-4 px-4 sm:px-6 lg:px-8 border-b">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <button 
+            className="text-xl font-bold"
+            onClick={() => handleNavigation("/")}
+          >
+            Multi-Chat AI
+          </button>
+          <div className="flex items-center gap-6">
+            <button 
+              className="font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => handleNavigation("/features")}
+            >
+              Features
+            </button>
+            <button 
+              className="font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => handleNavigation("/pricing")}
+            >
+              Pricing
+            </button>
+            <button 
+              className="font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => handleNavigation("/about")}
+            >
+              About Us
+            </button>
+            <Button 
+              size="sm" 
+              onClick={() => handleNavigation("/chat")}
+            >
+              Go to Chat
+            </Button>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
       <section className="relative py-20 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center text-center min-h-[90vh]">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_40%_at_50%_50%,var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
@@ -257,7 +299,7 @@ const HomePage: React.FC = () => {
         <div className="max-w-6xl mx-auto">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
-              <h3 className="font-bold text-lg mb-4">Chat Platform</h3>
+              <h3 className="font-bold text-lg mb-4">Multi-Chat AI</h3>
               <p className="text-muted-foreground">
                 The ultimate multi-chat solution for seamless communication.
               </p>
@@ -265,10 +307,10 @@ const HomePage: React.FC = () => {
             <div>
               <h3 className="font-bold text-lg mb-4">Links</h3>
               <ul className="space-y-2">
-                <li><button className="text-muted-foreground hover:text-foreground">Home</button></li>
-                <li><button className="text-muted-foreground hover:text-foreground">Features</button></li>
-                <li><button className="text-muted-foreground hover:text-foreground">Pricing</button></li>
-                <li><button className="text-muted-foreground hover:text-foreground">About Us</button></li>
+                <li><button onClick={() => handleNavigation("/")} className="text-muted-foreground hover:text-foreground">Home</button></li>
+                <li><button onClick={() => handleNavigation("/features")} className="text-muted-foreground hover:text-foreground">Features</button></li>
+                <li><button onClick={() => handleNavigation("/pricing")} className="text-muted-foreground hover:text-foreground">Pricing</button></li>
+                <li><button onClick={() => handleNavigation("/about")} className="text-muted-foreground hover:text-foreground">About Us</button></li>
               </ul>
             </div>
             <div>
@@ -289,7 +331,7 @@ const HomePage: React.FC = () => {
             </div>
           </div>
           <div className="mt-12 pt-8 border-t text-center text-muted-foreground">
-            <p>© {new Date().getFullYear()} Chat Platform. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Multi-Chat AI. All rights reserved.</p>
           </div>
         </div>
       </footer>
