@@ -5,14 +5,15 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import MessageInput from "@/components/chat/MessageInput";
 import ModelSelector from "@/components/chat/ModelSelector";
 import { useChat } from "@/context/ChatContext";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Loader2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const ChatWindow: React.FC = () => {
   const { 
     currentThread, 
     sendMessage, 
-    isProcessing, 
+    isProcessing,
+    isLoading,
     provider, 
     model, 
     setProvider, 
@@ -55,6 +56,15 @@ const ChatWindow: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+        <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+        <p className="text-muted-foreground">Loading conversations...</p>
+      </div>
+    );
+  }
 
   if (!currentThread) {
     return (

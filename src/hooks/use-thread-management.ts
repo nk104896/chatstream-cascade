@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { ChatThread, ChatHistoryByDate } from "@/types";
 import { useApi } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
@@ -8,11 +7,19 @@ export function useThreadManagement() {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [threadsByDate, setThreadsByDate] = useState<ChatHistoryByDate>({});
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const isFetchingRef = useRef(false);
   const api = useApi();
   const { toast } = useToast();
 
   const fetchThreads = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current || isLoading) return;
+    
     try {
+      isFetchingRef.current = true;
+      setIsLoading(true);
+      
       // Get threads
       const threadsData = await api.get("/threads");
       setThreads(threadsData);
@@ -27,8 +34,11 @@ export function useThreadManagement() {
         title: "Failed to load conversations",
         description: "Please try again later",
       });
+    } finally {
+      setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [api, toast]);
+  }, [api, toast, isLoading]);
 
   const createNewThread = useCallback(async () => {
     try {
@@ -123,6 +133,7 @@ export function useThreadManagement() {
     threads,
     threadsByDate,
     currentThread,
+    isLoading,
     setCurrentThread: selectThread,
     createNewThread,
     deleteThread,

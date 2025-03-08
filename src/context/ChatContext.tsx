@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { ChatThread, ChatHistoryByDate } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { useThreadManagement } from "@/hooks/use-thread-management";
@@ -9,6 +10,7 @@ interface ChatContextType {
   threadsByDate: ChatHistoryByDate;
   currentThread: ChatThread | null;
   isProcessing: boolean;
+  isLoading: boolean;
   provider: string;
   model: string;
   setProvider: (provider: string) => void;
@@ -27,11 +29,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [provider, setProvider] = useState<string>("openai");
   const [model, setModel] = useState<string>("gpt-4o");
   const { isAuthenticated } = useAuth();
+  const didInitialFetchRef = useRef(false);
   
   const {
     threads,
     threadsByDate,
     currentThread,
+    isLoading,
     setCurrentThread: selectThread,
     createNewThread,
     deleteThread,
@@ -61,11 +65,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [currentThread]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Only fetch threads if authenticated and haven't fetched yet
+    if (isAuthenticated && !didInitialFetchRef.current) {
       fetchThreads();
-    } else {
-      // Clear threads when not authenticated
-      // No need to call hook methods as they already handle the state
+      didInitialFetchRef.current = true;
+    } else if (!isAuthenticated) {
+      // Reset the fetch flag when logging out
+      didInitialFetchRef.current = false;
     }
   }, [isAuthenticated, fetchThreads]);
 
@@ -76,6 +82,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         threadsByDate,
         currentThread: currentThreadState,
         isProcessing,
+        isLoading,
         provider,
         model,
         setProvider,
