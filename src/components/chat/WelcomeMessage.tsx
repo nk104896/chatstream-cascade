@@ -16,10 +16,12 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center max-w-3xl mx-auto">
       <h2 className="text-3xl font-bold tracking-tight mb-4">
-        Welcome to {platformName}!
+        Seamless Multi-Chat Experience – Connect, Collaborate, and Communicate
       </h2>
       <p className="text-muted-foreground mb-8">
-        Discover the power of multi-chat and how it enhances your productivity and communication.
+        Welcome to {platformName}! After logging in, you can instantly access your chats. 
+        But there's more—discover the power of multi-chat and how it enhances your productivity 
+        and communication.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-8">
@@ -46,14 +48,14 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
       </div>
 
       <div className="space-y-6 w-full max-w-md">
-        <h3 className="text-xl font-medium">Getting Started</h3>
+        <h3 className="text-xl font-medium">How It Works</h3>
         <ol className="space-y-4 text-left">
           <li className="flex gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
               1
             </div>
             <div className="flex-1">
-              <strong>Login & Access Chats</strong> – Your current chats are accessible immediately.
+              <strong>Login & Access Chats</strong> – Your current chat page opens immediately.
             </div>
           </li>
           <li className="flex gap-2">
@@ -69,7 +71,15 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
               3
             </div>
             <div className="flex-1">
-              <strong>Organize & Manage</strong> – Use the sidebar to navigate between conversations.
+              <strong>Organize & Manage</strong> – Use filters, labels, and pinned chats for easy navigation.
+            </div>
+          </li>
+          <li className="flex gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+              4
+            </div>
+            <div className="flex-1">
+              <strong>Seamless Integration</strong> – Connect with other tools for a unified workflow.
             </div>
           </li>
         </ol>
