@@ -1,8 +1,9 @@
 
 import React from "react";
-import { useChat } from "@/context/ChatContext";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Users, Zap, ArrowRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface WelcomeMessageProps {
   onNewChat: () => void;
@@ -13,6 +14,17 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
   onNewChat,
   platformName = "Chat Platform" 
 }) => {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  const handleButtonClick = () => {
+    if (isAuthenticated) {
+      onNewChat();
+    } else {
+      navigate("/login");
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center max-w-3xl mx-auto">
       <h2 className="text-3xl font-bold tracking-tight mb-4">
@@ -88,9 +100,9 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({
       <Button 
         size="lg" 
         className="mt-8"
-        onClick={onNewChat}
+        onClick={handleButtonClick}
       >
-        Start a New Chat
+        {isAuthenticated ? "Start a New Chat" : "Login to Start"}
       </Button>
     </div>
   );

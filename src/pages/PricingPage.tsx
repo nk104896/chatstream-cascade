@@ -1,14 +1,19 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   
   const handleGetStarted = () => {
-    navigate("/chat");
+    if (isAuthenticated) {
+      navigate("/chat");
+    } else {
+      navigate("/login");
+    }
   };
 
   const handleNavigation = (path: string) => {
@@ -50,12 +55,21 @@ const PricingPage: React.FC = () => {
             >
               About Us
             </button>
-            <Button 
-              size="sm" 
-              onClick={() => handleNavigation("/chat")}
-            >
-              Go to Chat
-            </Button>
+            {isAuthenticated ? (
+              <Button 
+                size="sm" 
+                onClick={() => handleNavigation("/chat")}
+              >
+                Go to Chat
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                onClick={() => handleNavigation("/login")}
+              >
+                Login
+              </Button>
+            )}
           </div>
         </div>
       </nav>
@@ -185,7 +199,7 @@ const PricingPage: React.FC = () => {
               onClick={handleGetStarted}
               className="text-primary text-base px-8"
             >
-              Try for Free
+              {isAuthenticated ? "Go to Chat" : "Try for Free"}
             </Button>
             <Button 
               size="lg" 
