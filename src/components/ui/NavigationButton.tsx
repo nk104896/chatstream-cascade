@@ -10,6 +10,7 @@ interface NavigationButtonProps {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   className?: string;
   icon?: React.ReactNode;
+  onClick?: () => void;
 }
 
 const NavigationButton: React.FC<NavigationButtonProps> = ({
@@ -18,11 +19,17 @@ const NavigationButton: React.FC<NavigationButtonProps> = ({
   variant = "default",
   className,
   icon,
+  onClick,
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   const handleClick = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
+
     if (isAuthenticated) {
       navigate("/chat");
     } else {

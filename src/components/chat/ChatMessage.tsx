@@ -4,6 +4,7 @@ import { Message } from "@/types";
 import { cn } from "@/lib/utils";
 import UserAvatar from "@/components/ui/UserAvatar";
 import FilePreview from "@/components/chat/FilePreview";
+import CodeBlock from "@/components/ui/CodeBlock";
 import { useAuth } from "@/context/AuthContext";
 
 interface ChatMessageProps {
@@ -24,16 +25,62 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const formatMessageContent = (content: string) => {
     if (isUserMessage) return <p>{content}</p>;
 
-    // Process the content to add formatting
-    let formattedContent = content;
+    // Extract code blocks first
+    const codeBlockRegex = /```([a-z]*)\n([\s\S]*?)\n```/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
 
-    // Replace code blocks with properly formatted versions
-    formattedContent = formattedContent.replace(
-      /```([a-z]*)\n([\s\S]*?)\n```/g,
-      (_, language, code) => {
-        return `<pre class="relative my-4 overflow-auto rounded-lg bg-muted/50 p-4 text-sm"><code class="block whitespace-pre font-mono">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code><span class="absolute right-2 top-2 text-xs text-muted-foreground">${language}</span></pre>`;
+    // Find all code blocks
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      // Add text before the code block
+      if (match.index > lastIndex) {
+        const textBefore = content.substring(lastIndex, match.index);
+        parts.push({ type: 'text', content: textBefore });
       }
+
+      // Add the code block
+      const language = match[1] || 'javascript';
+      const code = match[2];
+      parts.push({ type: 'code', language, content: code });
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add any remaining text after the last code block
+    if (lastIndex < content.length) {
+      parts.push({ type: 'text', content: content.substring(lastIndex) });
+    }
+
+    // If no code blocks were found, just return the formatted text
+    if (parts.length === 0) {
+      return formatTextContent(content);
+    }
+
+    // Render all parts
+    return (
+      <div className="ai-message-content prose-sm max-w-none dark:prose-invert">
+        {parts.map((part, index) => {
+          if (part.type === 'code') {
+            return (
+              <CodeBlock
+                key={index}
+                code={part.content}
+                language={part.language || 'javascript'}
+                showLineNumbers={true}
+              />
+            );
+          } else {
+            return <div key={index}>{formatTextContent(part.content)}</div>;
+          }
+        })}
+      </div>
     );
+  };
+
+  // Helper function to format regular text content
+  const formatTextContent = (text: string) => {
+    let formattedContent = text;
 
     // Replace inline code with properly formatted versions
     formattedContent = formattedContent.replace(
@@ -79,20 +126,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       '<em class="italic">$1</em>'
     );
 
-    // Wrap adjacent list items in <ul> or <ol> tags
-    formattedContent = formattedContent.replace(
-      /(<li class="ml-4 pl-2 py-1 flex items-start"><span class="mr-2 mt-1\.5 h-1\.5 w-1\.5 flex-shrink-0 rounded-full bg-primary"><\/span>.*?<\/li>)(?=\s*<li class="ml-4 pl-2 py-1 flex items-start"><span class="mr-2 mt-1\.5)/g,
-      '$1'
-    );
-    formattedContent = formattedContent.replace(
-      /(<li class="ml-4 pl-2 py-1 flex items-start"><span class="mr-2 mt-0\.5 flex-shrink-0 font-bold">.*?<\/li>)(?=\s*<li class="ml-4 pl-2 py-1 flex items-start"><span class="mr-2 mt-0\.5)/g,
-      '$1'
-    );
-
     // Add line breaks
     formattedContent = formattedContent.replace(/\n/g, '<br />');
 
-    return <div dangerouslySetInnerHTML={{ __html: formattedContent }} className="ai-message-content prose-sm max-w-none dark:prose-invert" />;
+    return <div dangerouslySetInnerHTML={{ __html: formattedContent }} />;
   };
 
   return (

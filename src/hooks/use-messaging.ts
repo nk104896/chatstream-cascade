@@ -42,7 +42,19 @@ export function useMessaging({
       // Process files if any
       let fileAttachments: FileAttachment[] = [];
       if (files.length > 0) {
+        // Show upload toast
+        toast({
+          title: "Uploading files...",
+          description: `Uploading ${files.length} file${files.length > 1 ? 's' : ''}`,
+        });
+        
         fileAttachments = await api.uploadFiles(files);
+        
+        // Show success toast
+        toast({
+          title: "Files uploaded",
+          description: `Successfully uploaded ${files.length} file${files.length > 1 ? 's' : ''}`,
+        });
       }
       
       // Send user message
@@ -61,12 +73,19 @@ export function useMessaging({
       
       setCurrentThread(updatedThread);
       
+      // Show processing toast
+      toast({
+        title: "Processing message",
+        description: "The AI is processing your message...",
+      });
+      
       // Process message with AI - now including provider and model
       const aiResponse = await api.post("/process-message", {
         content,
         thread_id: threadToUse.id,
         provider,
-        model
+        model,
+        has_images: fileAttachments.some(file => file.type.startsWith('image/'))
       });
       
       // Update thread with AI response

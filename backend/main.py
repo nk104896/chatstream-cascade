@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import routers
-from routers import auth, chat, files
+from routers import auth, chat, files, email
 
 # Create FastAPI app
 app = FastAPI(
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api", tags=["Authentication"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(files.router, prefix="/api", tags=["Files"])
+app.include_router(email.router, prefix="/api", tags=["Email"])
 
 # Mount static files directory for file uploads
 uploads_dir = os.path.join(os.getcwd(), os.getenv("UPLOAD_DIRECTORY", "uploads"))

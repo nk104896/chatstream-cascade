@@ -93,6 +93,16 @@ def get_file_content(file_path, file_type):
         except:
             return f"[Unsupported file type: {file_type}]"
 
+def encode_image_to_base64(file_path):
+    """Convert image to base64 for AI models that accept base64 images"""
+    try:
+        with open(file_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            return encoded_string
+    except Exception as e:
+        print(f"Error encoding image: {str(e)}")
+        return None
+
 def prepare_files_for_ai(files):
     """Prepare file attachments for AI processing"""
     processed_files = []
@@ -101,11 +111,20 @@ def prepare_files_for_ai(files):
         file_path = os.path.join(os.getcwd(), file.url.lstrip("/"))
         content = get_file_content(file_path, file.type)
         
-        processed_files.append({
+        file_data = {
             "name": file.name,
             "type": file.type,
             "content": content
-        })
+        }
+        
+        # For images, also include base64 encoding for vision models
+        if file.type.startswith('image/'):
+            file_data["base64"] = encode_image_to_base64(file_path)
+            file_data["is_image"] = True
+        else:
+            file_data["is_image"] = False
+        
+        processed_files.append(file_data)
     
     return processed_files
 
@@ -115,20 +134,61 @@ def format_files_for_provider(files, provider):
         return []
     
     if provider.lower() == "openai":
-        # OpenAI expects file content to be included as part of the message
-        file_contents = []
-        for file in files:
-            file_contents.append(f"--- File: {file['name']} ---\n{file['content']}\n")
+        # OpenAI can handle both text and images
+        messages = []
         
-        return "\n".join(file_contents)
+        # First, handle text files as part of the message content
+        text_files = [f for f in files if not f.get('is_image', False)]
+        if text_files:
+            text_contents = []
+            for file in text_files:
+                text_contents.append(f"--- File: {file['name']} ---\n{file['content']}\n")
+            
+            if text_contents:
+                messages.append({
+                    "text_content": "\n".join(text_contents)
+                })
+        
+        # Then, handle images as separate content items for GPT-4 Vision
+        image_files = [f for f in files if f.get('is_image', False)]
+        for file in image_files:
+            if file.get('base64'):
+                messages.append({
+                    "image_url": {
+                        "url": f"data:{file['type']};base64,{file['base64']}"
+                    }
+                })
+        
+        return messages
     
     elif provider.lower() == "gemini":
         # Gemini can handle text and images
-        text_contents = []
-        for file in files:
-            text_contents.append(f"Content from {file['name']}:\n{file['content']}")
+        parts = []
         
-        return "\n\n".join(text_contents)
+        # Text content
+        text_files = [f for f in files if not f.get('is_image', False)]
+        if text_files:
+            text_contents = []
+            for file in text_files:
+                text_contents.append(f"Content from {file['name']}:\n{file['content']}")
+            
+            if text_contents:
+                parts.append({
+                    "text": "\n\n".join(text_contents)
+                })
+        
+        # Image content
+        image_files = [f for f in files if f.get('is_image', False)]
+        for file in image_files:
+            if file.get('base64'):
+                parts.append({
+                    "inline_data": {
+                        "mime_type": file['type'],
+                        "data": file['base64']
+                    }
+                })
+        
+        return parts
     
     else:
         # Generic format for other providers
