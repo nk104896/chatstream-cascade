@@ -5,15 +5,19 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
 interface NavigationButtonProps {
+  label?: string;
   size?: "default" | "sm" | "lg" | "icon";
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   className?: string;
+  icon?: React.ReactNode;
 }
 
 const NavigationButton: React.FC<NavigationButtonProps> = ({
+  label,
   size = "default",
   variant = "default",
   className,
+  icon,
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -33,7 +37,8 @@ const NavigationButton: React.FC<NavigationButtonProps> = ({
       onClick={handleClick}
       className={className}
     >
-      {isAuthenticated ? "Go to Chat" : "Login / Sign Up"}
+      {label || (isAuthenticated ? "Go to Chat" : "Login / Sign Up")}
+      {icon}
     </Button>
   );
 };

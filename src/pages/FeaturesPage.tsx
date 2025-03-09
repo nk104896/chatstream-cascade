@@ -1,16 +1,14 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Bot, Link2, Globe, Mic, Search, Lock, Palette, MessageSquare, FolderKanban } from "lucide-react";
+import NavigationButton from "@/components/ui/NavigationButton";
+import { useAuth } from "@/context/AuthContext";
 
 const FeaturesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   
-  const handleTryForFree = () => {
-    navigate("/chat");
-  };
-
   const handleNavigation = (path: string) => {
     navigate(path);
   };
@@ -47,9 +45,9 @@ const FeaturesPage: React.FC = () => {
             </button>
             <Button 
               size="sm" 
-              onClick={() => handleNavigation("/chat")}
+              onClick={() => isAuthenticated ? navigate("/chat") : navigate("/login")}
             >
-              Go to Chat
+              {isAuthenticated ? "Go to Chat" : "Login"}
             </Button>
           </div>
         </div>
@@ -64,9 +62,11 @@ const FeaturesPage: React.FC = () => {
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
             Experience intelligent chat management with AI-driven organization, automation, and integrations.
           </p>
-          <Button size="lg" onClick={handleTryForFree} className="text-base px-8">
-            Try for Free
-          </Button>
+          <NavigationButton 
+            label="Try for Free" 
+            size="lg" 
+            className="text-base px-8"
+          />
         </div>
       </section>
 
@@ -156,15 +156,13 @@ const FeaturesPage: React.FC = () => {
           <p className="text-xl opacity-90 mb-10 max-w-2xl mx-auto">
             Join thousands of users who have transformed their communication experience with our AI-powered platform.
           </p>
-          <Button 
+          <NavigationButton 
+            label="Start Chatting Smarter"
             size="lg" 
             variant="secondary" 
-            onClick={handleTryForFree}
             className="text-primary text-base px-8"
-          >
-            Start Chatting Smarter
-            <ArrowRight className="ml-2" />
-          </Button>
+            icon={<ArrowRight className="ml-2" />}
+          />
         </div>
       </section>
 

@@ -3,19 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import NavigationButton from "@/components/ui/NavigationButton";
 
 const PricingPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   
-  const handleGetStarted = () => {
-    if (isAuthenticated) {
-      navigate("/chat");
-    } else {
-      navigate("/login");
-    }
-  };
-
   const handleNavigation = (path: string) => {
     navigate(path);
   };
@@ -55,21 +48,12 @@ const PricingPage: React.FC = () => {
             >
               About Us
             </button>
-            {isAuthenticated ? (
-              <Button 
-                size="sm" 
-                onClick={() => handleNavigation("/chat")}
-              >
-                Go to Chat
-              </Button>
-            ) : (
-              <Button 
-                size="sm" 
-                onClick={() => handleNavigation("/login")}
-              >
-                Login
-              </Button>
-            )}
+            <Button 
+              size="sm" 
+              onClick={() => isAuthenticated ? navigate("/chat") : navigate("/login")}
+            >
+              {isAuthenticated ? "Go to Chat" : "Login"}
+            </Button>
           </div>
         </div>
       </nav>
@@ -83,13 +67,11 @@ const PricingPage: React.FC = () => {
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
             Choose the right plan for your personal, business, or enterprise needs.
           </p>
-          <Button 
+          <NavigationButton 
+            label="Get Started" 
             size="lg" 
-            onClick={handleGetStarted} 
             className="text-base px-8"
-          >
-            Get Started
-          </Button>
+          />
         </div>
       </section>
 
@@ -193,14 +175,12 @@ const PricingPage: React.FC = () => {
             Choose the plan that works for you and start experiencing the future of chat management.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button 
+            <NavigationButton 
+              label={isAuthenticated ? "Go to Chat" : "Try for Free"}
               size="lg" 
               variant="secondary" 
-              onClick={handleGetStarted}
               className="text-primary text-base px-8"
-            >
-              {isAuthenticated ? "Go to Chat" : "Try for Free"}
-            </Button>
+            />
             <Button 
               size="lg" 
               variant="outline" 
