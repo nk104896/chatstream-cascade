@@ -1,199 +1,138 @@
 
 import os
-from PyPDF2 import PdfReader
-from docx import Document
-from PIL import Image
-import pytesseract
-import io
 import base64
-import json
+from typing import List, Dict, Any, Optional
+import mimetypes
+import magic  # python-magic for better file type detection
+from PIL import Image
+from io import BytesIO
+import PyPDF2
+import docx
+import csv
 
-def extract_text_from_pdf(file_path):
-    """Extract text from PDF files"""
-    try:
-        reader = PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        return text.strip()
-    except Exception as e:
-        print(f"Error extracting text from PDF: {str(e)}")
-        return f"[Error processing PDF: {str(e)}]"
-
-def extract_text_from_docx(file_path):
-    """Extract text from Word documents"""
-    try:
-        doc = Document(file_path)
-        text = ""
-        for paragraph in doc.paragraphs:
-            text += paragraph.text + "\n"
-        
-        # Also extract from tables
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    text += cell.text + " "
-                text += "\n"
-                
-        return text.strip()
-    except Exception as e:
-        print(f"Error extracting text from DOCX: {str(e)}")
-        return f"[Error processing DOCX: {str(e)}]"
-
-def extract_text_from_image(file_path):
-    """Extract text from images using OCR"""
-    try:
-        # Check if pytesseract can be used
-        try:
-            image = Image.open(file_path)
-            text = pytesseract.image_to_string(image)
-            return text.strip()
-        except Exception as ocr_error:
-            # If OCR fails, just return image description
-            return f"[Image file: {os.path.basename(file_path)}]"
-    except Exception as e:
-        print(f"Error processing image: {str(e)}")
-        return f"[Error processing image: {str(e)}]"
-
-def read_text_file(file_path):
-    """Read content from text files"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return file.read().strip()
-    except UnicodeDecodeError:
-        # Try again with a different encoding
-        try:
-            with open(file_path, 'r', encoding='latin-1') as file:
-                return file.read().strip()
-        except Exception as e:
-            return f"[Error reading text file: {str(e)}]"
-    except Exception as e:
-        print(f"Error reading text file: {str(e)}")
-        return f"[Error reading text file: {str(e)}]"
-
-def get_file_content(file_path, file_type):
-    """Extract content from file based on its type"""
-    if not os.path.exists(file_path):
-        return f"[File not found: {file_path}]"
-    
-    lower_type = file_type.lower()
-    
-    if "pdf" in lower_type:
-        return extract_text_from_pdf(file_path)
-    elif "word" in lower_type or "docx" in lower_type or "doc" in lower_type:
-        return extract_text_from_docx(file_path)
-    elif "image" in lower_type or "jpeg" in lower_type or "jpg" in lower_type or "png" in lower_type:
-        return extract_text_from_image(file_path)
-    elif "text" in lower_type or "txt" in lower_type:
-        return read_text_file(file_path)
-    else:
-        # For unknown types, try to read as text
-        try:
-            return read_text_file(file_path)
-        except:
-            return f"[Unsupported file type: {file_type}]"
-
-def encode_image_to_base64(file_path):
-    """Convert image to base64 for AI models that accept base64 images"""
-    try:
-        with open(file_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-            return encoded_string
-    except Exception as e:
-        print(f"Error encoding image: {str(e)}")
-        return None
-
-def prepare_files_for_ai(files):
-    """Prepare file attachments for AI processing"""
+def prepare_files_for_ai(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Process file attachments for AI input"""
     processed_files = []
     
     for file in files:
-        file_path = os.path.join(os.getcwd(), file.url.lstrip("/"))
-        content = get_file_content(file_path, file.type)
+        file_path = os.path.join(os.getenv("UPLOAD_DIRECTORY", "uploads"), os.path.basename(file.url))
         
-        file_data = {
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}")
+            continue
+        
+        # Determine file type
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_file(file_path)
+        
+        # Read file as binary
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+        
+        # Process based on file type
+        processed_file = {
             "name": file.name,
-            "type": file.type,
-            "content": content
+            "type": file_type,
+            "is_image": file_type.startswith("image/")
         }
         
-        # For images, also include base64 encoding for vision models
-        if file.type.startswith('image/'):
-            file_data["base64"] = encode_image_to_base64(file_path)
-            file_data["is_image"] = True
+        # For images, convert to base64
+        if processed_file["is_image"]:
+            try:
+                # Resize large images to save bandwidth
+                with Image.open(BytesIO(file_data)) as img:
+                    if max(img.size) > 1024:  # if either dimension is > 1024px
+                        img.thumbnail((1024, 1024), Image.LANCZOS)
+                        buffered = BytesIO()
+                        img.save(buffered, format=img.format)
+                        file_data = buffered.getvalue()
+                
+                # Convert to base64
+                processed_file["base64"] = base64.b64encode(file_data).decode("utf-8")
+            except Exception as e:
+                print(f"Error processing image {file.name}: {str(e)}")
+                continue
         else:
-            file_data["is_image"] = False
+            # Extract text from documents
+            content = extract_text_from_file(file_path, file_type)
+            if content:
+                processed_file["content"] = content
+            else:
+                # If text extraction failed, provide base64 for binary files
+                processed_file["base64"] = base64.b64encode(file_data).decode("utf-8")
         
-        processed_files.append(file_data)
+        processed_files.append(processed_file)
     
     return processed_files
 
-def format_files_for_provider(files, provider):
-    """Format file content based on AI provider"""
-    if not files:
-        return []
-    
-    if provider.lower() == "openai":
-        # OpenAI can handle both text and images
-        messages = []
+def extract_text_from_file(file_path: str, file_type: str) -> Optional[str]:
+    """Extract text content from various file types"""
+    try:
+        # Plain text files
+        if file_type in ["text/plain", "text/markdown", "application/json", "text/html", "text/csv"]:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
         
-        # First, handle text files as part of the message content
-        text_files = [f for f in files if not f.get('is_image', False)]
-        if text_files:
-            text_contents = []
-            for file in text_files:
-                text_contents.append(f"--- File: {file['name']} ---\n{file['content']}\n")
+        # PDF files
+        elif file_type == "application/pdf":
+            text = ""
+            with open(file_path, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                for page_num in range(len(reader.pages)):
+                    text += reader.pages[page_num].extract_text() + "\n"
+            return text
+        
+        # Word documents
+        elif file_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+                          "application/msword"]:
+            doc = docx.Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs])
+        
+        # CSV files
+        elif file_type == "text/csv":
+            rows = []
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                csv_reader = csv.reader(f)
+                for row in csv_reader:
+                    rows.append(",".join(row))
+            return "\n".join(rows)
+        
+        # Not a supported text format
+        else:
+            return None
             
-            if text_contents:
-                messages.append({
-                    "text_content": "\n".join(text_contents)
-                })
-        
-        # Then, handle images as separate content items for GPT-4 Vision
-        image_files = [f for f in files if f.get('is_image', False)]
-        for file in image_files:
-            if file.get('base64'):
-                messages.append({
-                    "image_url": {
-                        "url": f"data:{file['type']};base64,{file['base64']}"
-                    }
-                })
-        
-        return messages
+    except Exception as e:
+        print(f"Error extracting text from {file_path}: {str(e)}")
+        return None
+
+def format_files_for_provider(files: List[Dict[str, Any]], provider: str) -> List[Dict[str, Any]]:
+    """Format files for a specific AI provider"""
+    # Format adjustments for different providers
+    if provider == "openai":
+        # OpenAI expects a specific format for images
+        return [
+            {
+                "name": file["name"],
+                "type": file["type"],
+                "is_image": file["is_image"],
+                "base64": file.get("base64"),
+                "content": file.get("content")
+            }
+            for file in files
+        ]
     
-    elif provider.lower() == "gemini":
-        # Gemini can handle text and images
-        parts = []
-        
-        # Text content
-        text_files = [f for f in files if not f.get('is_image', False)]
-        if text_files:
-            text_contents = []
-            for file in text_files:
-                text_contents.append(f"Content from {file['name']}:\n{file['content']}")
-            
-            if text_contents:
-                parts.append({
-                    "text": "\n\n".join(text_contents)
-                })
-        
-        # Image content
-        image_files = [f for f in files if f.get('is_image', False)]
-        for file in image_files:
-            if file.get('base64'):
-                parts.append({
-                    "inline_data": {
-                        "mime_type": file['type'],
-                        "data": file['base64']
-                    }
-                })
-        
-        return parts
+    elif provider == "gemini":
+        # Gemini uses inlineData format
+        return [
+            {
+                "name": file["name"],
+                "mime_type": file["type"],
+                "is_image": file["is_image"],
+                "data": file.get("base64"),
+                "text": file.get("content")
+            }
+            for file in files
+        ]
     
-    else:
-        # Generic format for other providers
-        file_contents = []
-        for file in files:
-            file_contents.append(f"--- {file['name']} ---\n{file['content']}\n")
-        
-        return "\n".join(file_contents)
+    # Default format (for other providers)
+    return files

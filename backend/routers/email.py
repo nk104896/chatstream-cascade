@@ -1,102 +1,251 @@
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Optional
 from database import get_db
 from models import User
-from email_service import EmailService
 from utils import get_current_user
 from dotenv import load_dotenv
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from pydantic import BaseModel, EmailStr, Field
 
 # Load environment variables
 load_dotenv()
 
 router = APIRouter()
-email_service = EmailService()
 
-@router.post("/send-test-email", status_code=status.HTTP_200_OK)
-async def send_test_email(
-    data: Dict[str, Any] = Body(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+# Email configuration
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "True").lower() in ["true", "1", "yes"]
+DEFAULT_SENDER = SMTP_USER
+
+# Email schemas
+class EmailContent(BaseModel):
+    recipient: EmailStr
+    subject: str
+    body_html: str
+    body_text: Optional[str] = None
+    sender: Optional[EmailStr] = None
+
+# Send email function
+def send_email_background(
+    recipient: str,
+    subject: str,
+    body_html: str,
+    body_text: str = None,
+    sender: str = DEFAULT_SENDER
 ):
+    """Send email in background task"""
+    try:
+        # Create MIME message
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = sender
+        message["To"] = recipient
+        
+        # Add plain text part if provided, otherwise use a default
+        if not body_text:
+            body_text = "Please view this email in an HTML compatible client."
+        
+        # Attach parts
+        part1 = MIMEText(body_text, "plain")
+        part2 = MIMEText(body_html, "html")
+        message.attach(part1)
+        message.attach(part2)
+        
+        # Connect to SMTP server
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            if SMTP_USE_TLS:
+                server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(sender, recipient, message.as_string())
+            
+        print(f"Successfully sent email to {recipient}")
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {str(e)}")
+        return False
+
+# Email templates
+def get_verification_email(name: str, verification_link: str) -> tuple:
+    """Generate verification email HTML and text versions"""
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <h2 style="color: #2c3e50;">Verify Your Email Address</h2>
+        <p>Hello {name},</p>
+        <p>Thank you for signing up! Please verify your email address by clicking the button below:</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{verification_link}" 
+               style="background-color: #3498db; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+               Verify Email
+            </a>
+        </p>
+        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; font-size: 14px; color: #7f8c8d;">{verification_link}</p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't create this account, you can safely ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eaeaea; margin: 30px 0;">
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center;">
+            © Multi-Chat AI Platform
+        </p>
+    </body>
+    </html>
     """
-    Send a test email to verify SMTP settings
-    Only available to authenticated users
+    
+    text = f"""
+    Verify Your Email Address
+    
+    Hello {name},
+    
+    Thank you for signing up! Please verify your email address by clicking the link below:
+    
+    {verification_link}
+    
+    This link will expire in 24 hours.
+    
+    If you didn't create this account, you can safely ignore this email.
+    
+    © Multi-Chat AI Platform
     """
-    if not current_user:
+    
+    return html, text
+
+def get_password_reset_email(name: str, reset_link: str) -> tuple:
+    """Generate password reset email HTML and text versions"""
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+        <h2 style="color: #2c3e50;">Reset Your Password</h2>
+        <p>Hello {name},</p>
+        <p>We received a request to reset your password. Click the button below to set a new password:</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{reset_link}" 
+               style="background-color: #e74c3c; color: white; padding: 12px 25px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+               Reset Password
+            </a>
+        </p>
+        <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; font-size: 14px; color: #7f8c8d;">{reset_link}</p>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you didn't request a password reset, you can safely ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eaeaea; margin: 30px 0;">
+        <p style="font-size: 12px; color: #7f8c8d; text-align: center;">
+            © Multi-Chat AI Platform
+        </p>
+    </body>
+    </html>
+    """
+    
+    text = f"""
+    Reset Your Password
+    
+    Hello {name},
+    
+    We received a request to reset your password. Click the link below to set a new password:
+    
+    {reset_link}
+    
+    This link will expire in 1 hour.
+    
+    If you didn't request a password reset, you can safely ignore this email.
+    
+    © Multi-Chat AI Platform
+    """
+    
+    return html, text
+
+# API Endpoints
+@router.post("/send-verification", status_code=status.HTTP_202_ACCEPTED)
+async def send_verification_email(
+    background_tasks: BackgroundTasks,
+    email: EmailStr = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    """Send a verification email to a user"""
+    # Find user by email
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )
     
-    recipient = data.get("recipient", current_user.email)
+    # Generate verification link (in a real app, this would include a token)
+    verification_link = f"http://localhost:3000/verify?token=verification_token_here&email={email}"
     
-    # Send test email
-    success = email_service.send_email(
-        recipient_email=recipient,
-        subject="Test Email from Multi-Chat AI",
-        html_content="""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #4a5568;">Test Email</h2>
-            <p>This is a test email from Multi-Chat AI to verify your SMTP settings.</p>
-            <p>If you received this email, your email configuration is working correctly!</p>
-        </div>
-        """
+    # Generate email content
+    html_content, text_content = get_verification_email(user.name, verification_link)
+    
+    # Send email in background
+    background_tasks.add_task(
+        send_email_background,
+        recipient=email,
+        subject="Verify Your Email Address",
+        body_html=html_content,
+        body_text=text_content
     )
     
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send test email. Check SMTP settings and logs."
-        )
-    
-    return {"message": "Test email sent successfully", "recipient": recipient}
+    return {"message": "Verification email sent"}
 
-@router.post("/send-password-reset", status_code=status.HTTP_200_OK)
-async def send_password_reset(
-    data: Dict[str, Any] = Body(...),
-    background_tasks: BackgroundTasks = None,
-    db: Session = Depends(get_db),
+@router.post("/send-password-reset", status_code=status.HTTP_202_ACCEPTED)
+async def send_password_reset_email(
+    background_tasks: BackgroundTasks,
+    email: EmailStr = Body(..., embed=True),
+    db: Session = Depends(get_db)
 ):
     """Send a password reset email to a user"""
-    email = data.get("email")
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is required"
-        )
-    
-    # Find user
+    # Find user by email
     user = db.query(User).filter(User.email == email).first()
+    
     if not user:
-        # Don't reveal if user exists, just return success
-        return {"message": "If a user with this email exists, a password reset link has been sent."}
-    
-    # Generate reset token (you could enhance this with JWT)
-    import secrets
-    import time
-    token = f"{secrets.token_urlsafe(32)}-{int(time.time())}"
-    
-    # Store token in the database (you might need to add a reset_token field to User model)
-    # For this example, we're not actually storing it
-    
-    # Generate reset link
-    reset_link = f"http://localhost:3000/reset-password?token={token}"
-    
-    # Send email (in background if possible)
-    if background_tasks:
-        background_tasks.add_task(
-            email_service.send_password_reset_email,
-            user.email,
-            reset_link
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
         )
-    else:
-        success = email_service.send_password_reset_email(user.email, reset_link)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send password reset email"
-            )
     
-    return {"message": "If a user with this email exists, a password reset link has been sent."}
+    # Generate reset link (in a real app, this would include a token)
+    reset_link = f"http://localhost:3000/reset-password?token=reset_token_here&email={email}"
+    
+    # Generate email content
+    html_content, text_content = get_password_reset_email(user.name, reset_link)
+    
+    # Send email in background
+    background_tasks.add_task(
+        send_email_background,
+        recipient=email,
+        subject="Reset Your Password",
+        body_html=html_content,
+        body_text=text_content
+    )
+    
+    return {"message": "Password reset email sent"}
+
+@router.post("/send", status_code=status.HTTP_202_ACCEPTED)
+async def send_custom_email(
+    background_tasks: BackgroundTasks,
+    email_content: EmailContent,
+    current_user: User = Depends(get_current_user)
+):
+    """Send a custom email (requires authentication)"""
+    # Use default sender if not provided
+    sender = email_content.sender or DEFAULT_SENDER
+    
+    # Send email in background
+    background_tasks.add_task(
+        send_email_background,
+        recipient=email_content.recipient,
+        subject=email_content.subject,
+        body_html=email_content.body_html,
+        body_text=email_content.body_text,
+        sender=sender
+    )
+    
+    return {"message": "Email sent successfully"}
