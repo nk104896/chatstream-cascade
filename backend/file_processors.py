@@ -3,7 +3,6 @@ import os
 import base64
 from typing import List, Dict, Any, Optional
 import mimetypes
-import magic  # python-magic for better file type detection
 from PIL import Image
 from io import BytesIO
 import PyPDF2
@@ -21,9 +20,11 @@ def prepare_files_for_ai(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             print(f"File not found: {file_path}")
             continue
         
-        # Determine file type
-        mime = magic.Magic(mime=True)
-        file_type = mime.from_file(file_path)
+        # Determine file type using mimetypes
+        file_type, _ = mimetypes.guess_type(file_path)
+        if not file_type:
+            # Default to binary if can't determine
+            file_type = "application/octet-stream"
         
         # Read file as binary
         with open(file_path, "rb") as f:
