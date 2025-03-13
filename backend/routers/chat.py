@@ -1,8 +1,7 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status, Body, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import List, Dict, Optional
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import json
 import os
@@ -13,6 +12,8 @@ from schemas import ChatThreadCreate, ChatThreadResponse, MessageCreate, Message
 from utils import get_current_user
 from dotenv import load_dotenv
 from file_processors import prepare_files_for_ai, format_files_for_provider
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 # Load environment variables
 load_dotenv()
@@ -536,6 +537,73 @@ def process_mistral_request(messages, model, files=None, has_images=False):
     response_data = response.json()
     return response_data["choices"][0]["message"]["content"]
 
+def process_huggingface_request(messages, model, files=None, has_images=False):
+    """Process request using Hugging Face models"""
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
+    
+    # Map model IDs to Hugging Face model names
+    model_mapping = {
+        "huggingface-llama3": "meta-llama/Llama-3-8b-chat-hf",
+        "huggingface-phi3": "microsoft/phi-3-mini-4k-instruct",
+        "huggingface-mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        "huggingface-falcon": "tiiuae/falcon-7b-instruct"
+    }
+    
+    # Get the appropriate model name
+    hf_model_name = model_mapping.get(model)
+    if not hf_model_name:
+        hf_model_name = "microsoft/phi-3-mini-4k-instruct"  # Default fallback
+    
+    # For API-based inference
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    # Format conversation for Hugging Face API
+    conversation = ""
+    for msg in messages:
+        role = "User: " if msg["role"] == "user" else "Assistant: "
+        conversation += f"{role}{msg['content']}\n"
+    
+    conversation += "Assistant: "
+    
+    # If there are files, add their content to the prompt
+    if files:
+        text_files = [f for f in files if not f.get('is_image', False)]
+        if text_files:
+            file_content = "\n\n".join([f"Content from {file['name']}:\n{file['content']}" for file in text_files])
+            conversation = f"The following files were provided:\n{file_content}\n\n{conversation}"
+
+    # Make API request to Hugging Face Inference API
+    payload = {
+        "inputs": conversation,
+        "parameters": {
+            "max_new_tokens": 500,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "do_sample": True
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f"https://api-inference.huggingface.co/models/{hf_model_name}",
+            headers=headers,
+            json=payload
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                return result[0].get('generated_text', '').replace(conversation, '')
+            return result.get('generated_text', '').replace(conversation, '')
+        else:
+            # Return error message
+            return f"Error from Hugging Face API: {response.text}"
+    except Exception as e:
+        return f"Error calling Hugging Face API: {str(e)}"
+
 def get_ai_response(messages, provider, model, files=None, has_images=False):
     """Route the request to the appropriate AI provider with message history and files"""
     if provider == "openai":
@@ -544,6 +612,8 @@ def get_ai_response(messages, provider, model, files=None, has_images=False):
         return process_gemini_request(messages, model, files, has_images)
     elif provider == "mistral":
         return process_mistral_request(messages, model, files, has_images)
+    elif provider == "huggingface":
+        return process_huggingface_request(messages, model, files, has_images)
     else:
         # Fallback to a generic response if provider not supported
         return f"Using {provider}'s {model}: I understand your message and am here to help."

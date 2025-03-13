@@ -55,6 +55,16 @@ const providers: ProviderOption[] = [
       { id: "mistral-small", name: "Mistral Small" },
     ],
   },
+  {
+    id: "huggingface",
+    name: "Hugging Face",
+    models: [
+      { id: "huggingface-llama3", name: "Llama 3" },
+      { id: "huggingface-phi3", name: "Phi-3 Mini" },
+      { id: "huggingface-mixtral", name: "Mixtral 8x7B" },
+      { id: "huggingface-falcon", name: "Falcon 7B" },
+    ],
+  },
 ];
 
 interface ModelSelectorProps {
