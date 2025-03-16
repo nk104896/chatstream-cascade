@@ -38,7 +38,22 @@ async def create_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new chat thread for the current user"""
-    # ... keep existing code (thread creation)
+    # Create a new thread
+    new_thread = ChatThread(
+        title=thread.title,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    
+    # Associate the thread with the user
+    new_thread.users.append(current_user)
+    
+    # Add to database
+    db.add(new_thread)
+    db.commit()
+    db.refresh(new_thread)
+    
+    return new_thread
 
 # Get all threads for the current user
 @router.get("/threads", response_model=List[ChatThreadResponse])
@@ -47,7 +62,12 @@ async def get_threads(
     current_user: User = Depends(get_current_user)
 ):
     """Get all chat threads for the current user"""
-    # ... keep existing code (thread retrieval)
+    # Get threads sorted by updated_at (latest first)
+    threads = db.query(ChatThread).filter(
+        ChatThread.users.any(id=current_user.id)
+    ).order_by(ChatThread.updated_at.desc()).all()
+    
+    return threads
 
 # Get a specific thread by ID
 @router.get("/threads/{thread_id}", response_model=ChatThreadResponse)
@@ -57,7 +77,19 @@ async def get_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific chat thread by ID"""
-    # ... keep existing code (thread retrieval by ID)
+    # Get thread with messages
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    return thread
 
 # Update a thread (e.g., change title)
 @router.put("/threads/{thread_id}", response_model=ChatThreadResponse)
@@ -68,7 +100,27 @@ async def update_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Update a chat thread's title"""
-    # ... keep existing code (thread updating)
+    # Find thread
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    # Update thread title
+    thread.title = thread_update.title
+    thread.updated_at = datetime.utcnow()
+    
+    # Save changes
+    db.commit()
+    db.refresh(thread)
+    
+    return thread
 
 # Delete a thread
 @router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -78,7 +130,23 @@ async def delete_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a chat thread"""
-    # ... keep existing code (thread deletion)
+    # Find thread
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    # Delete the thread
+    db.delete(thread)
+    db.commit()
+    
+    return None
 
 # Add a message to a thread
 @router.post("/threads/{thread_id}/messages", response_model=MessageResponse)
@@ -89,7 +157,51 @@ async def create_message(
     current_user: User = Depends(get_current_user)
 ):
     """Add a message to a chat thread"""
-    # ... keep existing code (message creation)
+    # Find thread
+    thread = db.query(ChatThread).filter(
+        ChatThread.id == thread_id,
+        ChatThread.users.any(id=current_user.id)
+    ).first()
+    
+    if thread is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thread not found"
+        )
+    
+    # Create message
+    new_message = Message(
+        content=message.content,
+        sender=message.sender,
+        timestamp=datetime.utcnow(),
+        thread_id=thread.id,
+        user_id=current_user.id if message.sender == "user" else None
+    )
+    
+    # Add files if any
+    if message.files and len(message.files) > 0:
+        for file_data in message.files:
+            file = FileAttachment(
+                name=file_data.name,
+                type=file_data.type,
+                size=file_data.size,
+                url=file_data.url,
+                preview=file_data.preview,
+                message_id=new_message.id
+            )
+            new_message.files.append(file)
+    
+    # Add message to database
+    db.add(new_message)
+    
+    # Update thread's updated_at timestamp
+    thread.updated_at = datetime.utcnow()
+    
+    # Commit changes
+    db.commit()
+    db.refresh(new_message)
+    
+    return new_message
 
 # Get chat history grouped by date
 @router.get("/history", response_model=Dict[str, List[ChatThreadResponse]])
@@ -98,7 +210,25 @@ async def get_chat_history(
     current_user: User = Depends(get_current_user)
 ):
     """Get chat history grouped by date"""
-    # ... keep existing code (history retrieval)
+    # Get threads for the current user
+    threads = db.query(ChatThread).filter(
+        ChatThread.users.any(id=current_user.id)
+    ).order_by(ChatThread.updated_at.desc()).all()
+    
+    # Group threads by date
+    history_by_date = {}
+    
+    for thread in threads:
+        # Format date string
+        date_str = thread.updated_at.strftime("%B %d, %Y")
+        
+        # Add to the appropriate date group
+        if date_str not in history_by_date:
+            history_by_date[date_str] = []
+        
+        history_by_date[date_str].append(thread)
+    
+    return history_by_date
 
 @router.post("/process-message", response_model=MessageResponse)
 async def process_message(
