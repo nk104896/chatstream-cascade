@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 interface ModelOption {
   id: string;
   name: string;
+  hugging_face_alternative?: string;
 }
 
 interface ProviderOption {
@@ -26,43 +27,43 @@ const providers: ProviderOption[] = [
     id: "openai",
     name: "OpenAI",
     models: [
-      { id: "gpt-4", name: "GPT-4" },
-      { id: "gpt-4o", name: "GPT-4o" },
-      { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+      { id: "gpt-4", name: "GPT-4", hugging_face_alternative: "HuggingFaceM4/idefics-9b" },
+      { id: "gpt-4o", name: "GPT-4o", hugging_face_alternative: "HuggingFaceM4/idefics-9b" },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", hugging_face_alternative: "Salesforce/blip-image-captioning-large" },
     ],
   },
   {
     id: "gemini",
     name: "Gemini",
     models: [
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro" },
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", hugging_face_alternative: "google/PaLI-2B" },
+      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", hugging_face_alternative: "google/vit-large-patch16-224" },
     ],
   },
   {
     id: "deepseek",
     name: "DeepSeek",
     models: [
-      { id: "deepseek-coder", name: "DeepSeek Coder" },
-      { id: "deepseek-chat", name: "DeepSeek Chat" },
+      { id: "deepseek-coder", name: "DeepSeek Coder", hugging_face_alternative: "deepseek-ai/deepseek-coder-33b-instruct" },
+      { id: "deepseek-chat", name: "DeepSeek Chat", hugging_face_alternative: "deepseek-ai/deepseek-llm-7b-chat" },
     ],
   },
   {
     id: "mistral",
     name: "Mistral",
     models: [
-      { id: "mistral-large", name: "Mistral Large" },
-      { id: "mistral-small", name: "Mistral Small" },
+      { id: "mistral-large", name: "Mistral Large", hugging_face_alternative: "mistralai/Mistral-7B-Instruct-v0.2" },
+      { id: "mistral-small", name: "Mistral Small", hugging_face_alternative: "mistralai/Mistral-7B-Instruct-v0.2" },
     ],
   },
   {
     id: "huggingface",
     name: "Hugging Face",
     models: [
-      { id: "huggingface-llama3", name: "Llama 3" },
-      { id: "huggingface-phi3", name: "Phi-3 Mini" },
-      { id: "huggingface-mixtral", name: "Mixtral 8x7B" },
-      { id: "huggingface-falcon", name: "Falcon 7B" },
+      { id: "meta-llama/Llama-3-8b-chat-hf", name: "Llama 3" },
+      { id: "microsoft/phi-3-mini-4k-instruct", name: "Phi-3 Mini" },
+      { id: "mistralai/Mixtral-8x7B-Instruct-v0.1", name: "Mixtral 8x7B" },
+      { id: "tiiuae/falcon-7b-instruct", name: "Falcon 7B" },
     ],
   },
 ];

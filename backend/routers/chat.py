@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status, Body, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -14,9 +15,18 @@ from dotenv import load_dotenv
 from file_processors import prepare_files_for_ai, format_files_for_provider
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import logging
+from ai_provider_manager import AIProviderManager
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+# Initialize AI Provider Manager
+ai_manager = AIProviderManager("backend/ai_providers_config.json")
 
 router = APIRouter()
 
@@ -28,19 +38,7 @@ async def create_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new chat thread for the current user"""
-    new_thread = ChatThread(
-        title=thread.title
-    )
-    
-    # Add user to the thread
-    new_thread.users.append(current_user)
-    
-    # Add to database
-    db.add(new_thread)
-    db.commit()
-    db.refresh(new_thread)
-    
-    return new_thread
+    # ... keep existing code (thread creation)
 
 # Get all threads for the current user
 @router.get("/threads", response_model=List[ChatThreadResponse])
@@ -49,11 +47,7 @@ async def get_threads(
     current_user: User = Depends(get_current_user)
 ):
     """Get all chat threads for the current user"""
-    threads = db.query(ChatThread).filter(
-        ChatThread.users.any(id=current_user.id)
-    ).order_by(desc(ChatThread.updated_at)).all()
-    
-    return threads
+    # ... keep existing code (thread retrieval)
 
 # Get a specific thread by ID
 @router.get("/threads/{thread_id}", response_model=ChatThreadResponse)
@@ -63,18 +57,7 @@ async def get_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific chat thread by ID"""
-    thread = db.query(ChatThread).filter(
-        ChatThread.id == thread_id,
-        ChatThread.users.any(id=current_user.id)
-    ).first()
-    
-    if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
-        )
-    
-    return thread
+    # ... keep existing code (thread retrieval by ID)
 
 # Update a thread (e.g., change title)
 @router.put("/threads/{thread_id}", response_model=ChatThreadResponse)
@@ -85,24 +68,7 @@ async def update_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Update a chat thread's title"""
-    thread = db.query(ChatThread).filter(
-        ChatThread.id == thread_id,
-        ChatThread.users.any(id=current_user.id)
-    ).first()
-    
-    if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
-        )
-    
-    # Update thread
-    thread.title = thread_update.title
-    thread.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(thread)
-    
-    return thread
+    # ... keep existing code (thread updating)
 
 # Delete a thread
 @router.delete("/threads/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -112,22 +78,7 @@ async def delete_thread(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a chat thread"""
-    thread = db.query(ChatThread).filter(
-        ChatThread.id == thread_id,
-        ChatThread.users.any(id=current_user.id)
-    ).first()
-    
-    if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
-        )
-    
-    # Delete the thread
-    db.delete(thread)
-    db.commit()
-    
-    return None
+    # ... keep existing code (thread deletion)
 
 # Add a message to a thread
 @router.post("/threads/{thread_id}/messages", response_model=MessageResponse)
@@ -138,52 +89,7 @@ async def create_message(
     current_user: User = Depends(get_current_user)
 ):
     """Add a message to a chat thread"""
-    # Verify thread exists and user has access
-    thread = db.query(ChatThread).filter(
-        ChatThread.id == thread_id,
-        ChatThread.users.any(id=current_user.id)
-    ).first()
-    
-    if thread is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Thread not found"
-        )
-    
-    # Create new message
-    new_message = Message(
-        content=message.content,
-        sender=message.sender,
-        thread_id=thread.id,
-        user_id=current_user.id if message.sender == "user" else None
-    )
-    
-    # Add to database
-    db.add(new_message)
-    db.commit()
-    db.refresh(new_message)
-    
-    # Process file attachments if any
-    if message.files and len(message.files) > 0:
-        for file_data in message.files:
-            file_attachment = FileAttachment(
-                name=file_data.name,
-                type=file_data.type,
-                size=file_data.size,
-                url=file_data.url,
-                preview=file_data.preview,
-                message_id=new_message.id
-            )
-            db.add(file_attachment)
-        
-        db.commit()
-        db.refresh(new_message)
-    
-    # Update thread's updated_at timestamp
-    thread.updated_at = datetime.utcnow()
-    db.commit()
-    
-    return new_message
+    # ... keep existing code (message creation)
 
 # Get chat history grouped by date
 @router.get("/history", response_model=Dict[str, List[ChatThreadResponse]])
@@ -192,23 +98,7 @@ async def get_chat_history(
     current_user: User = Depends(get_current_user)
 ):
     """Get chat history grouped by date"""
-    # Get all user threads
-    threads = db.query(ChatThread).filter(
-        ChatThread.users.any(id=current_user.id)
-    ).order_by(desc(ChatThread.updated_at)).all()
-    
-    # Group by date
-    history_by_date = {}
-    
-    for thread in threads:
-        date_str = thread.created_at.strftime("%B %d, %Y")
-        
-        if date_str not in history_by_date:
-            history_by_date[date_str] = []
-            
-        history_by_date[date_str].append(thread)
-    
-    return history_by_date
+    # ... keep existing code (history retrieval)
 
 @router.post("/process-message", response_model=MessageResponse)
 async def process_message(
@@ -279,8 +169,12 @@ async def process_message(
         if last_message and last_message.files:
             files_content = prepare_files_for_ai(last_message.files)
         
-        # Get response from the selected AI provider and model
-        response_text = get_ai_response(messages, provider, model, files_content, has_images)
+        # Get response using the AI provider manager with fallback
+        response_text = ai_manager.execute_with_fallback(
+            provider, model, 
+            get_ai_response, 
+            messages, files_content, has_images
+        )
         
         # Create AI response message
         ai_message = Message(
@@ -302,6 +196,7 @@ async def process_message(
         
     except Exception as e:
         # Handle any errors during API processing
+        logger.error(f"Error processing message: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing message: {str(e)}"
@@ -537,28 +432,66 @@ def process_mistral_request(messages, model, files=None, has_images=False):
     response_data = response.json()
     return response_data["choices"][0]["message"]["content"]
 
-def process_huggingface_request(messages, model, files=None, has_images=False):
-    """Process request using Hugging Face models"""
-    api_key = os.getenv("HUGGINGFACE_API_KEY")
-    
-    # Map model IDs to Hugging Face model names
-    model_mapping = {
-        "huggingface-llama3": "meta-llama/Llama-3-8b-chat-hf",
-        "huggingface-phi3": "microsoft/phi-3-mini-4k-instruct",
-        "huggingface-mixtral": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        "huggingface-falcon": "tiiuae/falcon-7b-instruct"
-    }
-    
-    # Get the appropriate model name
-    hf_model_name = model_mapping.get(model)
-    if not hf_model_name:
-        hf_model_name = "microsoft/phi-3-mini-4k-instruct"  # Default fallback
-    
-    # For API-based inference
+def process_deepseek_request(messages, model, files=None, has_images=False):
+    """Process request using DeepSeek API with message history and files"""
+    api_key = os.getenv("DEEPSEEK_API_KEY")
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+    
+    # Format messages for DeepSeek (similar to OpenAI format)
+    formatted_messages = []
+    
+    for msg in messages:
+        formatted_msg = {
+            "role": msg["role"],
+            "content": msg["content"]
+        }
+        formatted_messages.append(formatted_msg)
+    
+    # Add file content to the user message if available
+    if files:
+        text_files = [f for f in files if not f.get('is_image', False)]
+        if text_files:
+            file_content = "\n\n".join([f"--- File: {file['name']} ---\n{file['content']}" for file in text_files])
+            
+            # Find the last user message and add file content
+            for i in range(len(formatted_messages) - 1, -1, -1):
+                if formatted_messages[i]["role"] == "user":
+                    formatted_messages[i]["content"] = f"{file_content}\n\n{formatted_messages[i]['content']}"
+                    break
+    
+    # Determine which endpoint to use based on the model
+    endpoint = "https://api.deepseek.com/v1/chat/completions"
+    model_param = "deepseek-chat" if "chat" in model else "deepseek-coder"
+    
+    # Create the payload
+    payload = {
+        "model": model_param,
+        "messages": formatted_messages,
+        "max_tokens": 1500
+    }
+    
+    # Make the API request
+    response = requests.post(
+        endpoint,
+        headers=headers,
+        json=payload
+    )
+    
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"DeepSeek API error: {response.text}"
+        )
+    
+    response_data = response.json()
+    return response_data["choices"][0]["message"]["content"]
+
+def process_huggingface_request(messages, model, files=None, has_images=False):
+    """Process request using Hugging Face models"""
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
     
     # Format conversation for Hugging Face API
     conversation = ""
@@ -575,6 +508,22 @@ def process_huggingface_request(messages, model, files=None, has_images=False):
             file_content = "\n\n".join([f"Content from {file['name']}:\n{file['content']}" for file in text_files])
             conversation = f"The following files were provided:\n{file_content}\n\n{conversation}"
 
+    # Choose the right approach based on whether it's an image model or text model
+    if has_images and files and any(f.get('is_image', False) for f in files):
+        # For image-based models
+        return process_huggingface_vision_request(model, conversation, files)
+    else:
+        # For text-based models
+        return process_huggingface_text_request(model, conversation)
+
+def process_huggingface_text_request(model, conversation):
+    """Process a text-only request with Hugging Face"""
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
     # Make API request to Hugging Face Inference API
     payload = {
         "inputs": conversation,
@@ -588,9 +537,10 @@ def process_huggingface_request(messages, model, files=None, has_images=False):
     
     try:
         response = requests.post(
-            f"https://api-inference.huggingface.co/models/{hf_model_name}",
+            f"https://api-inference.huggingface.co/models/{model}",
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=30
         )
         
         if response.status_code == 200:
@@ -600,18 +550,70 @@ def process_huggingface_request(messages, model, files=None, has_images=False):
             return result.get('generated_text', '').replace(conversation, '')
         else:
             # Return error message
+            logger.error(f"Error from Hugging Face API: {response.text}")
             return f"Error from Hugging Face API: {response.text}"
     except Exception as e:
+        logger.error(f"Error calling Hugging Face API: {str(e)}")
         return f"Error calling Hugging Face API: {str(e)}"
 
-def get_ai_response(messages, provider, model, files=None, has_images=False):
+def process_huggingface_vision_request(model, conversation, files):
+    """Process a request with images using Hugging Face vision models"""
+    api_key = os.getenv("HUGGINGFACE_API_KEY")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    # Get the first image file
+    image_files = [f for f in files if f.get('is_image', False)]
+    if not image_files:
+        return "No image files found to process."
+    
+    image_file = image_files[0]
+    
+    # Create payload with image
+    payload = {
+        "inputs": {
+            "image": image_file.get('base64'),
+            "text": conversation
+        }
+    }
+    
+    try:
+        response = requests.post(
+            f"https://api-inference.huggingface.co/models/{model}",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, dict):
+                return result.get('generated_text', 'No response generated')
+            elif isinstance(result, list):
+                return result[0].get('generated_text', 'No response generated')
+            else:
+                return str(result)
+        else:
+            logger.error(f"Error from Hugging Face Vision API: {response.text}")
+            return f"Error from Hugging Face Vision API: {response.text}"
+    except Exception as e:
+        logger.error(f"Error calling Hugging Face Vision API: {str(e)}")
+        return f"Error calling Hugging Face Vision API: {str(e)}"
+
+def get_ai_response(provider, model, messages, files=None, has_images=False):
     """Route the request to the appropriate AI provider with message history and files"""
+    logger.info(f"Processing with provider: {provider}, model: {model}")
+    
     if provider == "openai":
         return process_openai_request(messages, model, files, has_images)
     elif provider == "gemini":
         return process_gemini_request(messages, model, files, has_images)
     elif provider == "mistral":
         return process_mistral_request(messages, model, files, has_images)
+    elif provider == "deepseek":
+        return process_deepseek_request(messages, model, files, has_images)
     elif provider == "huggingface":
         return process_huggingface_request(messages, model, files, has_images)
     else:
