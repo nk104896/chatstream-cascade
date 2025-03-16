@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status, Body, File, UploadFile, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -25,8 +24,29 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Determine the correct path for the config file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+config_paths = [
+    "ai_providers_config.json",  # Try direct path
+    os.path.join(current_dir, "..", "ai_providers_config.json"),  # Try relative to router directory
+    os.path.join(os.getcwd(), "ai_providers_config.json")  # Try from current working directory
+]
+
+# Initialize AI Provider Manager with the first config file that exists
+config_file = None
+for path in config_paths:
+    if os.path.exists(path):
+        config_file = path
+        logger.info(f"Using configuration file: {path}")
+        break
+
+if not config_file:
+    logger.error("Could not find ai_providers_config.json file")
+    # Default to the first path as a fallback
+    config_file = config_paths[0]
+
 # Initialize AI Provider Manager
-ai_manager = AIProviderManager("backend/ai_providers_config.json")
+ai_manager = AIProviderManager(config_file)
 
 router = APIRouter()
 
