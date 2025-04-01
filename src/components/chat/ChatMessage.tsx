@@ -4,7 +4,7 @@ import { Message } from "@/types";
 import { cn } from "@/lib/utils";
 import UserAvatar from "@/components/ui/UserAvatar";
 import FilePreview from "@/components/chat/FilePreview";
-import CodeBlock from "@/components/ui/CodeBlock";
+import SyntaxHighlighter from "@/components/ui/SyntaxHighlighter";
 import { useAuth } from "@/context/AuthContext";
 
 interface ChatMessageProps {
@@ -63,7 +63,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         {parts.map((part, index) => {
           if (part.type === 'code') {
             return (
-              <CodeBlock
+              <SyntaxHighlighter
                 key={index}
                 code={part.content}
                 language={part.language || 'javascript'}
