@@ -639,119 +639,6 @@ def process_deepseek_request(messages, model, files=None, has_images=False):
     response_data = response.json()
     return response_data["choices"][0]["message"]["content"]
 
-def process_huggingface_request(messages, model, files=None, has_images=False):
-    """Process request using Hugging Face models"""
-    api_key = os.getenv("HUGGINGFACE_API_KEY")
-    
-    # Format conversation for Hugging Face API
-    conversation = ""
-    for msg in messages:
-        role = "User: " if msg["role"] == "user" else "Assistant: "
-        conversation += f"{role}{msg['content']}\n"
-    
-    conversation += "Assistant: "
-    
-    # If there are files, add their content to the prompt
-    if files:
-        text_files = [f for f in files if not f.get('is_image', False)]
-        if text_files:
-            file_content = "\n\n".join([f"Content from {file['name']}:\n{file['content']}" for file in text_files])
-            conversation = f"The following files were provided:\n{file_content}\n\n{conversation}"
-
-    # Choose the right approach based on whether it's an image model or text model
-    if has_images and files and any(f.get('is_image', False) for f in files):
-        # For image-based models
-        return process_huggingface_vision_request(model, conversation, files)
-    else:
-        # For text-based models
-        return process_huggingface_text_request(model, conversation)
-
-def process_huggingface_text_request(model, conversation):
-    """Process a text-only request with Hugging Face"""
-    api_key = os.getenv("HUGGINGFACE_API_KEY")
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    # Make API request to Hugging Face Inference API
-    payload = {
-        "inputs": conversation,
-        "parameters": {
-            "max_new_tokens": 500,
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "do_sample": True
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"https://api-inference.huggingface.co/models/{model}",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                return result[0].get('generated_text', '').replace(conversation, '')
-            return result.get('generated_text', '').replace(conversation, '')
-        else:
-            # Return error message
-            logger.error(f"Error from Hugging Face API: {response.text}")
-            return f"Error from Hugging Face API: {response.text}"
-    except Exception as e:
-        logger.error(f"Error calling Hugging Face API: {str(e)}")
-        return f"Error calling Hugging Face API: {str(e)}"
-
-def process_huggingface_vision_request(model, conversation, files):
-    """Process a request with images using Hugging Face vision models"""
-    api_key = os.getenv("HUGGINGFACE_API_KEY")
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    # Get the first image file
-    image_files = [f for f in files if f.get('is_image', False)]
-    if not image_files:
-        return "No image files found to process."
-    
-    image_file = image_files[0]
-    
-    # Create payload with image
-    payload = {
-        "inputs": {
-            "image": image_file.get('base64'),
-            "text": conversation
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"https://api-inference.huggingface.co/models/{model}",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            if isinstance(result, dict):
-                return result.get('generated_text', 'No response generated')
-            elif isinstance(result, list):
-                return result[0].get('generated_text', 'No response generated')
-            else:
-                return str(result)
-        else:
-            logger.error(f"Error from Hugging Face Vision API: {response.text}")
-            return f"Error from Hugging Face Vision API: {response.text}"
-    except Exception as e:
-        logger.error(f"Error calling Hugging Face Vision API: {str(e)}")
-        return f"Error calling Hugging Face Vision API: {str(e)}"
-
 def get_ai_response(provider, model, messages, files=None, has_images=False):
     """Route the request to the appropriate AI provider with message history and files"""
     logger.info(f"Processing with provider: {provider}, model: {model}")
@@ -764,8 +651,6 @@ def get_ai_response(provider, model, messages, files=None, has_images=False):
         return process_mistral_request(messages, model, files, has_images)
     elif provider == "deepseek":
         return process_deepseek_request(messages, model, files, has_images)
-    elif provider == "huggingface":
-        return process_huggingface_request(messages, model, files, has_images)
     else:
         # Fallback to a generic response if provider not supported
         return f"Using {provider}'s {model}: I understand your message and am here to help."
